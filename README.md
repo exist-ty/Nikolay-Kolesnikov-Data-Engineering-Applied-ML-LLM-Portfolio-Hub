@@ -28,8 +28,8 @@ graph TD
     E --> H["Churn Prediction<br/>Logistic Regression + Random Forest"]
     H --> I["Метрики: ROC-AUC, PR-AUC<br/>Feature Importance"]
 
-    F --> J[("pgvector: kb_documents<br/>VECTOR(384) + HNSW-индекс")]
-    J --> K["RAG-поиск + генерация<br/>Qwen2.5-3B-Instruct + all-minilm (Ollama)"]
+    F --> J[("pgvector + tsvector: kb_documents<br/>VECTOR(384) + HNSW · search_tsv + GIN")]
+    J --> K["Гибридный поиск (RRF)<br/>векторный + полнотекстовый → генерация (Qwen2.5-3B-Instruct, Ollama)"]
     K --> L["Triage Results + LLM Evaluation<br/>F1, Confusion Matrix"]
 ```
 
@@ -46,6 +46,8 @@ graph TD
 - scikit-learn — Logistic Regression, Random Forest, метрики (ROC-AUC, PR-AUC, classification_report)
 - Ollama — локальный инференс Qwen2.5-3B-Instruct (генерация) и all-minilm (эмбеддинги), без внешних API
 - pgvector — векторный тип данных и HNSW-индекс для поиска по эмбеддингам
+- Гибридный поиск — векторный (pgvector) + полнотекстовый (tsvector/GIN),
+  объединённые Reciprocal Rank Fusion
 - pydantic — валидация структурированного вывода LLM с retry-логикой
 
 **Infrastructure/Tools**
@@ -93,6 +95,14 @@ graph TD
   другом расчётах — ровно тот сигнал, который отдельные "демо поверх одной
   таблицы" не могут показать: дешёвое привлечение не обязательно означает
   довольных клиентов.
+- **Добавил гибридный поиск (RRF) в RAG и честно проверил, что именно он
+  чинит**: объединил векторный поиск (pgvector) с полнотекстовым (`tsvector`/
+  GIN) через Reciprocal Rank Fusion, что подняло accuracy классификации
+  обращений с 0.69 до 0.71 на полном честном прогоне. По найденным
+  документам проверил конкретную гипотезу об одной из ошибок модели — и
+  выяснил, что смена найденного контекста её не исправила: часть путаницы
+  оказалась собственным семантическим смещением 3B-модели, а не артефактом
+  плохого поиска, как предполагалось раньше.
 
 ## 📦 Компоненты экосистемы
 
@@ -105,7 +115,8 @@ graph TD
   бенчмарком против Postgres поверх общего staging-слоя.
 - **[support-triage-llm](https://github.com/exist-ty/support-triage-llm)** —
   автоматическая классификация и приоритизация обращений в поддержку локальной
-  LLM с RAG-контекстом на векторном поиске и количественной оценкой качества.
+  LLM с гибридным (векторный + полнотекстовый, RRF) RAG-поиском и
+  количественной оценкой качества.
 
 ## 🚀 Быстрый старт
 
