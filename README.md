@@ -20,8 +20,10 @@ graph TD
     C --> D["Аналитика (product-marketing-analytics)<br/>SQL-витрины: CAC/CPL/ROMI, LTV, Cohort Retention"]
     C --> E["ML: Feature Engineering<br/>customer-level датасет + churn-признак"]
     C --> F["Синтетические обращения клиентов<br/>(support-triage-llm)"]
+    C --> M["ClickHouse: order_events<br/>MergeTree + AggregatingMergeTree rollup"]
 
     D --> G["Metabase / Jupyter<br/>дашборды и отчёты"]
+    M --> N["Честный бенчмарк vs Postgres VIEW<br/>compare_engines.py"]
 
     E --> H["Churn Prediction<br/>Logistic Regression + Random Forest"]
     H --> I["Метрики: ROC-AUC, PR-AUC<br/>Feature Importance"]
@@ -35,7 +37,8 @@ graph TD
 
 **Data Engineering**
 - PostgreSQL 17 (оконные функции, CTE, явные индексы на FK-колонках)
-- Python: pandas, SQLAlchemy, psycopg2
+- ClickHouse (MergeTree, AggregatingMergeTree, MATERIALIZED VIEW с инкрементальным rollup)
+- Python: pandas, SQLAlchemy, psycopg2, clickhouse-connect
 - Паттерн ETL: extract / transform / load, идемпотентная загрузка
 - pytest — юнит-тесты transform-логики и агрегаций
 
@@ -71,6 +74,14 @@ graph TD
   добавил индексы на все внешние ключи и колонки фильтрации, затем честно
   подтвердил `EXPLAIN ANALYZE` переход планировщика с `Seq Scan` на
   `Bitmap Index Scan` при росте объёма данных до 150 000 строк.
+- **Добавил OLAP-слой (ClickHouse) рядом с Postgres и честно измерил разницу**:
+  спроектировал `MergeTree`-таблицу и инкрементальную витрину на
+  `AggregatingMergeTree` + `MATERIALIZED VIEW`, затем реальным бенчмарком
+  (медиана из 20 прогонов) показал, что на объёме этого пет-проекта
+  (~2000 строк) Postgres быстрее ClickHouse — включая его собственную
+  инкрементальную витрину — и объяснил почему (фиксированные накладные
+  расходы колоночного движка не окупаются на таком объёме), вместо того
+  чтобы подогнать вывод под ожидаемый "ClickHouse быстрее".
 - **Автоматизировал контроль качества кода**: настроил CI/CD (GitHub Actions)
   во всех трёх репозиториях — юнит-тесты прогоняются при каждом пуше,
   что предотвращает попадание регрессий в основную ветку без ручной проверки.
@@ -81,8 +92,9 @@ graph TD
   ETL-пайплайн, превращающий "грязные" сырые данные интернет-магазина в
   проиндексированный staging-слой PostgreSQL, готовый к аналитике и ML.
 - **[product-marketing-analytics](https://github.com/exist-ty/product-marketing-analytics)** —
-  SQL-витрины юнит-экономики (CAC/CPL/ROMI, LTV, retention) и модель
-  прогнозирования оттока клиентов поверх общего staging-слоя.
+  SQL-витрины юнит-экономики (CAC/CPL/ROMI, LTV, retention), модель
+  прогнозирования оттока клиентов и ClickHouse OLAP-слой с честным
+  бенчмарком против Postgres поверх общего staging-слоя.
 - **[support-triage-llm](https://github.com/exist-ty/support-triage-llm)** —
   автоматическая классификация и приоритизация обращений в поддержку локальной
   LLM с RAG-контекстом на векторном поиске и количественной оценкой качества.
