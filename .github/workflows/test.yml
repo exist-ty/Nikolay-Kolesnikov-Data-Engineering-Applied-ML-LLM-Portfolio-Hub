@@ -1,0 +1,31 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  validate-dag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: |
+          pip install "apache-airflow==2.10.4" \
+            --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.11.txt"
+      - name: Check DAG imports without errors
+        run: |
+          python -c "
+          from airflow.models import DagBag
+          bag = DagBag(dag_folder='dags', include_examples=False)
+          assert not bag.import_errors, bag.import_errors
+          assert 'ecosystem_pipeline' in bag.dags, 'ecosystem_pipeline DAG not found'
+          print(f'Loaded {len(bag.dags)} DAG(s) with no import errors')
+          "
+
+  validate-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate docker-compose.yml syntax
+        run: docker compose config -q
