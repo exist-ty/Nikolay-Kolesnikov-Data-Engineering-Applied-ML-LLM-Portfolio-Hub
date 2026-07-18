@@ -1,0 +1,91 @@
+x-airflow-common: &airflow-common
+  build: .
+  environment: &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow}@airflow-postgres/airflow
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+    AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
+    # localhost из .env каждого репозитория внутри контейнера означал бы
+    # сам контейнер — переопределено на host.docker.internal (тот же
+    # приём, что уже использует product-marketing-analytics/docker-compose.yml
+    # для Metabase). python-dotenv не перезаписывает уже установленные
+    # переменные окружения, поэтому .env репозиториев не трогаем.
+    DB_HOST: host.docker.internal
+    DB_PORT: "5432"
+    DB_NAME: etl_portfolio
+    DB_USER: postgres
+    DB_PASSWORD: ${ETL_DB_PASSWORD}
+    VECTOR_DB_HOST: host.docker.internal
+    VECTOR_DB_PORT: "5433"
+    VECTOR_DB_NAME: triage
+    VECTOR_DB_USER: postgres
+    VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD}
+    CLICKHOUSE_HOST: host.docker.internal
+    CLICKHOUSE_PORT: "8123"
+    CLICKHOUSE_USER: default
+    CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    OLLAMA_HOST: http://host.docker.internal:11434
+    OLLAMA_CHAT_MODEL: qwen2.5:3b-instruct
+    OLLAMA_EMBED_MODEL: all-minilm
+  volumes: &airflow-common-volumes
+    - ./dags:/opt/airflow/dags
+    - airflow-logs:/opt/airflow/logs
+    - ../etl-portfolio:/opt/repos/etl-portfolio
+    - ../product-marketing-analytics:/opt/repos/product-marketing-analytics
+    - ../llm-practice:/opt/repos/support-triage-llm
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+  depends_on:
+    airflow-postgres:
+      condition: service_healthy
+
+services:
+  airflow-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD:-airflow}
+      POSTGRES_DB: airflow
+    volumes:
+      - airflow-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  airflow-init:
+    <<: *airflow-common
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - >
+        airflow db migrate &&
+        airflow users create --username admin --password admin
+        --firstname Nikolay --lastname Kolesnikov --role Admin
+        --email admin@example.com || true
+
+  airflow-webserver:
+    <<: *airflow-common
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    ports:
+      - "8080:8080"
+    command: webserver
+
+  airflow-scheduler:
+    <<: *airflow-common
+    depends_on:
+      airflow-postgres:
+        condition: service_healthy
+      airflow-init:
+        condition: service_completed_successfully
+    command: scheduler
+
+volumes:
+  airflow-postgres-data:
+  airflow-logs:

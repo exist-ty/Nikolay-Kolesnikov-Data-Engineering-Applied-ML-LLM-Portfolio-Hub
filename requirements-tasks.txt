@@ -1,0 +1,14 @@
+# Объединённые зависимости скриптов трёх соседних репозиториев
+# (etl-portfolio, product-marketing-analytics, support-triage-llm),
+# устанавливаются поверх официального образа apache/airflow — см.
+# Dockerfile и README, раздел «Оркестрация (Airflow)».
+pandas
+numpy
+sqlalchemy
+psycopg2-binary
+python-dotenv
+matplotlib
+scikit-learn
+clickhouse-connect
+requests
+pydantic
