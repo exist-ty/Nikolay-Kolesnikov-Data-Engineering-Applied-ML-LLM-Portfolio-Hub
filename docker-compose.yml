@@ -28,6 +28,12 @@ x-airflow-common: &airflow-common
     OLLAMA_HOST: http://host.docker.internal:11434
     OLLAMA_CHAT_MODEL: qwen2.5:3b-instruct
     OLLAMA_EMBED_MODEL: all-minilm
+    # n8n-business-automation — соседний репозиторий, отдельный docker-compose,
+    # порт 5678 проброшен на host (см. его docker-compose.yml)
+    N8N_WEBHOOK_URL: http://host.docker.internal:5678/webhook/etl-failure-alert
+    N8N_QUALITY_WEBHOOK_URL: http://host.docker.internal:5678/webhook/etl-quality-report
+    N8N_DOCS_WEBHOOK_URL: http://host.docker.internal:5678/webhook/docs-refresh
+    N8N_DRIFT_WEBHOOK_URL: http://host.docker.internal:5678/webhook/triage-drift-check
   volumes: &airflow-common-volumes
     - ./dags:/opt/airflow/dags
     - airflow-logs:/opt/airflow/logs
