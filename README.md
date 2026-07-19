@@ -242,15 +242,18 @@ pytest                       # проверить, что окружение г�
 Три репозитория выше документируют свои зависимости в README как ручные
 инструкции ("сначала прогони X, потом Y") — реальные зависимости между
 задачами, просто не выраженные явно. `dags/ecosystem_pipeline_dag.py`
-превращает их в настоящий DAG на 9 задач:
+превращает их в настоящий DAG на 12 задач (9 задач самого пайплайна +
+3 `notify_*`, которые будят соответствующие воркфлоу в
+`n8n-business-automation` через webhook):
 
 ```
 etl_pipeline
-  ├─> refresh_marts
+  ├─> notify_quality_report
+  ├─> refresh_marts -> notify_docs_refresh
   ├─> load_to_clickhouse
   ├─> build_features -> train_churn_model
-  └─> generate_messages -> run_triage -> channel_triage_summary
-                                       -> evaluate_llm
+  └─> generate_messages -> run_triage -> channel_triage_summary -> notify_drift_check
+                                       -> evaluate_llm          -> notify_drift_check
 ```
 
 **Почему Docker, а не нативный Windows.** Apache Airflow официально не
@@ -295,7 +298,16 @@ UI — `http://localhost:8080` (admin/admin, создаётся `airflow-init`
 **Честный результат полного прогона.** 9/9 задач успешно, `LocalExecutor`
 реально выполнил четыре независимые ветки (`refresh_marts`,
 `load_to_clickhouse`, `build_features`, `generate_messages`) параллельно
-после `etl_pipeline`. Два дополнительных честных наблюдения:
+после `etl_pipeline`. Это измерение — с версии DAG на 9 задач, до
+добавления трёх `notify_*`. Каждая из них по отдельности проверена внутри
+контейнера через `airflow tasks test ecosystem_pipeline notify_* ...`
+(не curl с хоста — именно то, что реально выполнит `BashOperator`):
+`curl` уходил из контейнера, n8n отвечал `{"message":"Workflow was
+started"}`, задача помечалась `SUCCESS`. Честная оговорка: это три
+изолированных прогона одной задачи, а не один свежий сквозной прогон
+всех 12 задач подряд — таймингов вроде "51 минута" для новой,
+12-задачной версии DAG пока нет. Два дополнительных честных наблюдения
+из того самого прогона на 9 задач:
 
 - **`run_triage` занял ~51 минуту** вместо задокументированных в
   `support-triage-llm` ~24 — правдоподобное объяснение: Airflow (Postgres +
