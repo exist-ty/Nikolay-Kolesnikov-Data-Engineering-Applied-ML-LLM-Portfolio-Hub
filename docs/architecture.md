@@ -2,36 +2,17 @@
 
 ```mermaid
 graph TD
-    Z["🔄 Airflow DAG: ecosystem_pipeline<br/>(dags/, этот репозиторий)"]:::orchestration --> A["📥 Сырые данные (CSV)<br/>клиенты · заказы · товары · маркетинг"]:::etl
+    Z(["🔄 Airflow DAG: ecosystem_pipeline<br/>(dags/, этот репозиторий)"]):::orchestration --> ETL
 
-    subgraph ETL["📦 etl-portfolio"]
-        A --> B["extract → transform → load"]:::etl
-        B --> C[("PostgreSQL: staging-слой<br/>stg_customers / stg_orders / stg_products")]:::etl
-    end
+    ETL["📦 etl-portfolio<br/>ETL → PostgreSQL staging"]:::etl --> ANALYTICS
+    ETL --> LLM
+    ETL -.-> N8N
 
-    subgraph ANALYTICS["📊 product-marketing-analytics"]
-        C --> D["SQL-витрины<br/>CAC/CPL/ROMI, LTV, Cohort Retention"]:::analytics
-        D --> G["Metabase / Jupyter<br/>дашборды и отчёты"]:::analytics
-        C --> M[("ClickHouse: order_events<br/>MergeTree + AggregatingMergeTree rollup")]:::analytics
-        M --> N["Честный бенчмарк vs Postgres VIEW<br/>compare_engines.py"]:::analytics
-        C --> E["ML: Feature Engineering<br/>customer-level датасет + churn-признак"]:::analytics
-        E --> H["Churn Prediction<br/>Logistic Regression + Random Forest"]:::analytics
-        H --> I["Метрики: ROC-AUC, PR-AUC<br/>Feature Importance"]:::analytics
-    end
+    ANALYTICS["📊 product-marketing-analytics<br/>SQL-витрины · ClickHouse · Churn ML"]:::analytics -.-> N8N
 
-    subgraph LLM["💬 support-triage-llm"]
-        C --> F["Синтетические обращения клиентов"]:::llm
-        F --> J[("pgvector + tsvector: kb_documents<br/>VECTOR(384) + HNSW · search_tsv + GIN")]:::llm
-        J --> K["Гибридный поиск (RRF)<br/>векторный + полнотекстовый → генерация (Qwen2.5-3B-Instruct, Ollama)"]:::llm
-        K --> L["Triage Results + LLM Evaluation<br/>F1, Confusion Matrix"]:::llm
-    end
+    LLM["💬 support-triage-llm<br/>Гибридный RAG-поиск → Triage"]:::llm -.-> N8N
 
-    subgraph N8N["⚡ n8n-business-automation"]
-        C --> O["n8n workflows<br/>алерты · дайджест · Self-Service SQL-бот"]:::n8n
-        D --> O
-        L --> O
-        O --> P["Telegram / Email / Notion"]:::n8n
-    end
+    N8N["⚡ n8n-business-automation<br/>Алерты · Дайджест · Self-Service SQL-бот"]:::n8n --> OUT["Telegram / Email / Notion"]:::n8n
 
     classDef orchestration fill:#2a2140,stroke:#9085e9,color:#e8e6ff,stroke-width:2px
     classDef etl fill:#123a5e,stroke:#3987e5,color:#dbeafe,stroke-width:2px
@@ -40,13 +21,14 @@ graph TD
     classDef n8n fill:#5c3a10,stroke:#eda100,color:#fdecc8,stroke-width:2px
 ```
 
-Каждая рамка — отдельный репозиторий; `PostgreSQL staging` в
-`etl-portfolio` — общая точка входа, из которой читают все остальные три. n8n
-дополнительно читает витрины `product-marketing-analytics` напрямую
-(`mart_channel_economics`/`mart_customer_ltv`/`mart_cohort_retention` —
+Сплошные стрелки — пайплайн-поток данных (Airflow DAG вызывает эти
+репозитории по очереди), пунктирные — "читается напрямую": n8n не встроен
+в DAG как ещё один шаг, а читает staging `etl-portfolio` (Data Quality
+Report, Notion-документация) и витрины `product-marketing-analytics`
+напрямую (`mart_channel_economics`/`mart_customer_ltv`/`mart_cohort_retention` —
 `GRANT SELECT` выдан именно на них для Self-Service SQL-бота, см.
-`sql/readonly_role_selfservice.sql` в `n8n-business-automation`), не только
-staging-слой `etl-portfolio`.
+`sql/readonly_role_selfservice.sql` в `n8n-business-automation`) по
+событию, а не как шаг пайплайна.
 
 ## Компоненты экосистемы
 
