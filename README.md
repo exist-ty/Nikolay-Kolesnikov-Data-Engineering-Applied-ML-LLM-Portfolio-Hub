@@ -191,12 +191,17 @@ graph TD
   автоматическая классификация и приоритизация обращений в поддержку локальной
   LLM с гибридным (векторный + полнотекстовый, RRF) RAG-поиском и
   количественной оценкой качества.
-- **[n8n-business-automation](../n8n-business-automation)** — event-driven
-  автоматизация вокруг DAG: алерты об ошибках/дрейфе данных, еженедельный
-  AI-дайджест, Notion-документация, Self-Service Analytics Bot в Telegram.
+- **[n8n-business-automation](https://github.com/exist-ty/n8n-business-automation)** —
+  event-driven автоматизация вокруг DAG: алерты об ошибках/дрейфе данных,
+  еженедельный AI-дайджест, Notion-документация, Self-Service Analytics Bot
+  в Telegram.
 - **Этот репозиторий** — помимо документации, `docker-compose.yml` +
-  `dags/ecosystem_pipeline_dag.py`: Airflow (LocalExecutor) оркестрирует все
-  три репозитория выше одним DAG.
+  `dags/ecosystem_pipeline_dag.py`: Airflow (LocalExecutor) оркестрирует
+  основной пайплайн трёх репозиториев выше (etl-portfolio,
+  product-marketing-analytics, support-triage-llm) одним DAG, а
+  n8n-business-automation не встроен в DAG как ещё один узел — он вызывается
+  из этого же DAG через webhook на ключевых точках (событие, а не шаг
+  пайплайна), подробнее — «🤖 Бизнес-автоматизация (n8n)» ниже.
 
 ## 🚀 Быстрый старт
 
@@ -308,7 +313,7 @@ UI — `http://localhost:8080` (admin/admin, создаётся `airflow-init`
 
 ## 🤖 Бизнес-автоматизация (n8n)
 
-Отдельный репозиторий [`n8n-business-automation`](../n8n-business-automation)
+Отдельный репозиторий [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation)
 — event-driven обвязка вокруг DAG выше: то, что происходит **вокруг**
 пайплайна и обращено к людям, а не к данным. Airflow и n8n не дублируют
 друг друга — каждый n8n-воркфлоу вызывается webhook'ом ИЗ DAG, а не
