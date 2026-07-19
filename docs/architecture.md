@@ -38,11 +38,6 @@ graph TD
     classDef analytics fill:#0f3d24,stroke:#1baf7a,color:#d4f5e6,stroke-width:2px
     classDef llm fill:#4a1f3d,stroke:#e87ba4,color:#fbe4ee,stroke-width:2px
     classDef n8n fill:#5c3a10,stroke:#eda100,color:#fdecc8,stroke-width:2px
-
-    style ETL fill:#0d1a29,stroke:#3987e5,stroke-width:1px,color:#3987e5
-    style ANALYTICS fill:#0a1f14,stroke:#1baf7a,stroke-width:1px,color:#1baf7a
-    style LLM fill:#2a1220,stroke:#e87ba4,stroke-width:1px,color:#e87ba4
-    style N8N fill:#2e1d09,stroke:#eda100,stroke-width:1px,color:#eda100
 ```
 
 Каждая рамка — отдельный репозиторий; `PostgreSQL staging` в
