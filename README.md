@@ -113,3 +113,5 @@ graph TD
 - [`docs/orchestration.md`](docs/orchestration.md) — Airflow DAG, найденные конфликты, честные результаты прогонов.
 - [`docs/business-automation.md`](docs/business-automation.md) — n8n-автоматизация.
 - [`docs/adr/`](docs/adr/) — Architecture Decision Records: почему Airflow, почему Ollama, почему RRF, почему ClickHouse рядом с Postgres, почему отдельный venv для тасков.
+- [`docs/case_studies/`](docs/case_studies/) — три реальных инцидента (Problem → Investigation → Solution → Lesson Learned): конфликт версий SQLAlchemy, ClickHouse медленнее ожидаемого, non-determinism LLM-триажа.
+- [`docs/roadmap.md`](docs/roadmap.md) — что дальше при реальном росте (Spark, Kafka, Kubernetes, vLLM/TGI, S3+Iceberg, Grafana) и почему не нужно сейчас.
