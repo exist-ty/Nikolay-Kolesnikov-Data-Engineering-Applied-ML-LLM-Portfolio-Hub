@@ -246,14 +246,17 @@ pytest                       # проверить, что окружение г�
 3 `notify_*`, которые будят соответствующие воркфлоу в
 `n8n-business-automation` через webhook):
 
-```
-etl_pipeline
-  ├─> notify_quality_report
-  ├─> refresh_marts -> notify_docs_refresh
-  ├─> load_to_clickhouse
-  ├─> build_features -> train_churn_model
-  └─> generate_messages -> run_triage -> channel_triage_summary -> notify_drift_check
-                                       -> evaluate_llm          -> notify_drift_check
+```mermaid
+graph TD
+    A[etl_pipeline] --> B[notify_quality_report]
+    A --> C[refresh_marts] --> D[notify_docs_refresh]
+    A --> E[load_to_clickhouse]
+    A --> F[build_features] --> G[train_churn_model]
+    A --> H[generate_messages] --> I[run_triage]
+    I --> J[channel_triage_summary]
+    I --> K[evaluate_llm]
+    J --> L[notify_drift_check]
+    K --> L
 ```
 
 **Почему Docker, а не нативный Windows.** Apache Airflow официально не
