@@ -16,40 +16,57 @@ A/B-тесты с power-анализом — каждый компонент р�
 
 ```mermaid
 graph TD
-    Z["🔄 Airflow DAG<br/>ecosystem_pipeline"] --> A["📥 Сырые данные (CSV)<br/>клиенты · заказы · товары · маркетинг"]
+    Z["🔄 Airflow DAG<br/>ecosystem_pipeline"]:::orchestration --> A["📥 Сырые данные (CSV)<br/>клиенты · заказы · товары · маркетинг"]:::etl
 
     subgraph ETL["📦 etl-portfolio"]
-        A --> B["extract → transform → load"]
-        B --> C[("PostgreSQL staging<br/>stg_customers / stg_orders / stg_products")]
+        A --> B["extract → transform → load"]:::etl
+        B --> C[("PostgreSQL staging<br/>stg_customers / stg_orders / stg_products")]:::etl
     end
 
     subgraph ANALYTICS["📊 product-marketing-analytics"]
-        C --> D["SQL-витрины<br/>CAC/CPL/ROMI · LTV · Retention"]
-        D --> G["Metabase / Jupyter"]
-        C --> M[("ClickHouse: order_events<br/>MergeTree + rollup")]
-        M --> N["Честный бенчмарк<br/>vs Postgres VIEW"]
-        C --> E["Feature Engineering"]
-        E --> H["Churn Prediction<br/>LogReg + Random Forest"]
-        H --> I["ROC-AUC · PR-AUC<br/>Feature Importance"]
+        C --> D["SQL-витрины<br/>CAC/CPL/ROMI · LTV · Retention"]:::analytics
+        D --> G["Metabase / Jupyter"]:::analytics
+        C --> M[("ClickHouse: order_events<br/>MergeTree + rollup")]:::analytics
+        M --> N["Честный бенчмарк<br/>vs Postgres VIEW"]:::analytics
+        C --> E["Feature Engineering"]:::analytics
+        E --> H["Churn Prediction<br/>LogReg + Random Forest"]:::analytics
+        H --> I["ROC-AUC · PR-AUC<br/>Feature Importance"]:::analytics
     end
 
     subgraph LLM["💬 support-triage-llm"]
-        C --> F["Синтетические обращения клиентов"]
-        F --> J[("pgvector + tsvector<br/>kb_documents")]
-        J --> K["Гибридный поиск (RRF)<br/>→ Qwen2.5-3B (Ollama)"]
-        K --> L["Triage Results<br/>F1 · Confusion Matrix"]
+        C --> F["Синтетические обращения клиентов"]:::llm
+        F --> J[("pgvector + tsvector<br/>kb_documents")]:::llm
+        J --> K["Гибридный поиск (RRF)<br/>→ Qwen2.5-3B (Ollama)"]:::llm
+        K --> L["Triage Results<br/>F1 · Confusion Matrix"]:::llm
     end
 
     subgraph N8N["⚡ n8n-business-automation"]
-        C --> O["n8n workflows<br/>алерты · дайджест · SQL-бот"]
+        C --> O["n8n workflows<br/>алерты · дайджест · SQL-бот"]:::n8n
+        D --> O
         L --> O
-        O --> P["Telegram / Email / Notion"]
+        O --> P["Telegram / Email / Notion"]:::n8n
     end
+
+    classDef orchestration fill:#2a2140,stroke:#9085e9,color:#e8e6ff,stroke-width:2px
+    classDef etl fill:#123a5e,stroke:#3987e5,color:#dbeafe,stroke-width:2px
+    classDef analytics fill:#0f3d24,stroke:#1baf7a,color:#d4f5e6,stroke-width:2px
+    classDef llm fill:#4a1f3d,stroke:#e87ba4,color:#fbe4ee,stroke-width:2px
+    classDef n8n fill:#5c3a10,stroke:#eda100,color:#fdecc8,stroke-width:2px
+
+    style ETL fill:#0d1a29,stroke:#3987e5,stroke-width:1px,color:#3987e5
+    style ANALYTICS fill:#0a1f14,stroke:#1baf7a,stroke-width:1px,color:#1baf7a
+    style LLM fill:#2a1220,stroke:#e87ba4,stroke-width:1px,color:#e87ba4
+    style N8N fill:#2e1d09,stroke:#eda100,stroke-width:1px,color:#eda100
 ```
 
 Каждая рамка — отдельный репозиторий; `PostgreSQL staging` в
-`etl-portfolio` — общая точка входа для всех остальных. Подробный разбор
-каждого узла — [`docs/architecture.md`](docs/architecture.md).
+`etl-portfolio` — общая точка входа для всех остальных. n8n читает не
+только staging (Data Quality Report, Notion-документация), но и витрины
+`product-marketing-analytics` напрямую (Self-Service SQL-бот — `GRANT
+SELECT` выдан именно на `mart_channel_economics`/`mart_customer_ltv`/
+`mart_cohort_retention`, см. `sql/readonly_role_selfservice.sql` в
+`n8n-business-automation`). Подробный разбор каждого узла —
+[`docs/architecture.md`](docs/architecture.md).
 
 ## 🛠 Технологический стек
 
