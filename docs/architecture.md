@@ -2,29 +2,39 @@
 
 ```mermaid
 graph TD
-    Z["Airflow DAG: ecosystem_pipeline<br/>(dags/, этот репозиторий)"] --> A
-    A["Сырые данные (CSV)<br/>клиенты · заказы · товары · маркетинг"] --> B["ETL-пайплайн (etl-portfolio)<br/>extract → transform → load"]
-    B --> C[("PostgreSQL: staging-слой<br/>stg_customers / stg_orders / stg_products")]
+    Z["🔄 Airflow DAG: ecosystem_pipeline<br/>(dags/, этот репозиторий)"] --> A["📥 Сырые данные (CSV)<br/>клиенты · заказы · товары · маркетинг"]
 
-    C --> D["Аналитика (product-marketing-analytics)<br/>SQL-витрины: CAC/CPL/ROMI, LTV, Cohort Retention"]
-    C --> E["ML: Feature Engineering<br/>customer-level датасет + churn-признак"]
-    C --> F["Синтетические обращения клиентов<br/>(support-triage-llm)"]
-    C --> M["ClickHouse: order_events<br/>MergeTree + AggregatingMergeTree rollup"]
+    subgraph ETL["📦 etl-portfolio"]
+        A --> B["extract → transform → load"]
+        B --> C[("PostgreSQL: staging-слой<br/>stg_customers / stg_orders / stg_products")]
+    end
 
-    D --> G["Metabase / Jupyter<br/>дашборды и отчёты"]
-    M --> N["Честный бенчмарк vs Postgres VIEW<br/>compare_engines.py"]
+    subgraph ANALYTICS["📊 product-marketing-analytics"]
+        C --> D["SQL-витрины<br/>CAC/CPL/ROMI, LTV, Cohort Retention"]
+        D --> G["Metabase / Jupyter<br/>дашборды и отчёты"]
+        C --> M[("ClickHouse: order_events<br/>MergeTree + AggregatingMergeTree rollup")]
+        M --> N["Честный бенчмарк vs Postgres VIEW<br/>compare_engines.py"]
+        C --> E["ML: Feature Engineering<br/>customer-level датасет + churn-признак"]
+        E --> H["Churn Prediction<br/>Logistic Regression + Random Forest"]
+        H --> I["Метрики: ROC-AUC, PR-AUC<br/>Feature Importance"]
+    end
 
-    E --> H["Churn Prediction<br/>Logistic Regression + Random Forest"]
-    H --> I["Метрики: ROC-AUC, PR-AUC<br/>Feature Importance"]
+    subgraph LLM["💬 support-triage-llm"]
+        C --> F["Синтетические обращения клиентов"]
+        F --> J[("pgvector + tsvector: kb_documents<br/>VECTOR(384) + HNSW · search_tsv + GIN")]
+        J --> K["Гибридный поиск (RRF)<br/>векторный + полнотекстовый → генерация (Qwen2.5-3B-Instruct, Ollama)"]
+        K --> L["Triage Results + LLM Evaluation<br/>F1, Confusion Matrix"]
+    end
 
-    F --> J[("pgvector + tsvector: kb_documents<br/>VECTOR(384) + HNSW · search_tsv + GIN")]
-    J --> K["Гибридный поиск (RRF)<br/>векторный + полнотекстовый → генерация (Qwen2.5-3B-Instruct, Ollama)"]
-    K --> L["Triage Results + LLM Evaluation<br/>F1, Confusion Matrix"]
-
-    C --> O["n8n (n8n-business-automation)<br/>алерты · дайджест · Self-Service SQL-бот"]
-    L --> O
-    O --> P["Telegram / Email / Notion"]
+    subgraph N8N["⚡ n8n-business-automation"]
+        C --> O["n8n workflows<br/>алерты · дайджест · Self-Service SQL-бот"]
+        L --> O
+        O --> P["Telegram / Email / Notion"]
+    end
 ```
+
+Каждая рамка — отдельный репозиторий; `PostgreSQL staging` в
+`etl-portfolio` — общая точка входа, из которой читают все остальные три.
 
 ## Компоненты экосистемы
 
