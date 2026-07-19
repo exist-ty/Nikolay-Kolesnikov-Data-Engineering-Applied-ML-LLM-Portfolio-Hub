@@ -44,6 +44,9 @@ N8N_DOCS_WEBHOOK_URL = os.environ.get(
 N8N_DRIFT_WEBHOOK_URL = os.environ.get(
     "N8N_DRIFT_WEBHOOK_URL", "http://host.docker.internal:5678/webhook/triage-drift-check"
 )
+# mlflow — сервис в этом же docker-compose (docker-compose.yml), поэтому по
+# имени сервиса в общей compose-сети, а не host.docker.internal
+MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5501")
 
 
 def notify_failure(context):
@@ -82,6 +85,15 @@ with DAG(
     catchup=False,
     tags=["portfolio", "etl", "analytics", "llm"],
 ) as dag:
+
+    # Проверяет Postgres/ClickHouse/Ollama/MLflow ДО начала пайплайна — не
+    # блокирует падением сам etl_pipeline (у него нет retry на недоступность
+    # соседних сервисов), но даёт понятный сигнал в UI Airflow до того, как
+    # непонятная ошибка всплывёт где-то в середине графа
+    system_health_check = BashOperator(
+        task_id="system_health_check",
+        bash_command=f"{TASK_PYTHON} /opt/airflow/scripts/health_check.py",
+    )
 
     etl_pipeline = BashOperator(
         task_id="etl_pipeline",
@@ -124,6 +136,15 @@ with DAG(
         bash_command=f"cd {REPOS}/product-marketing-analytics && {TASK_PYTHON} ml/train_churn_model.py",
     )
 
+    # train_churn_model уже упал бы, если бы MLflow был недоступен (сам пишет
+    # туда run) — эта задача отдельно проверяет доступность сервиса как
+    # самостоятельный сигнал в UI Airflow, не полагаясь на косвенный вывод
+    # из успеха предыдущей задачи
+    mlflow_healthcheck_churn = BashOperator(
+        task_id="mlflow_healthcheck_churn",
+        bash_command=f"curl -sf {MLFLOW_TRACKING_URI}/health",
+    )
+
     generate_messages = BashOperator(
         task_id="generate_messages",
         bash_command=f"cd {REPOS}/support-triage-llm && {TASK_PYTHON} scripts/generate_messages.py",
@@ -146,15 +167,35 @@ with DAG(
         bash_command=f"cd {REPOS}/support-triage-llm && {TASK_PYTHON} scripts/evaluate_llm.py",
     )
 
-    # Триггерит "Data Drift Monitor" — сравнивает свежий срез распределения
-    # triage (категории/confidence/high-priority) со снапшотом за прошлый
-    # прогон, шлёт алерт при отклонении.
-    notify_drift_check = BashOperator(
-        task_id="notify_drift_check",
-        bash_command=f"curl -sf -X POST {N8N_DRIFT_WEBHOOK_URL} || true",
+    mlflow_healthcheck_triage = BashOperator(
+        task_id="mlflow_healthcheck_triage",
+        bash_command=f"curl -sf {MLFLOW_TRACKING_URI}/health",
     )
 
+    # Считает дрейф РАСПРЕДЕЛЕНИЯ ЗАКАЗОВ (total_amount, неделя к неделе,
+    # см. scripts/check_drift.py) — не то же самое, что "Data Drift Monitor"
+    # в n8n (categories/confidence триажа), это её дополняет со стороны
+    # etl-portfolio; пишет drift_result.json, который читает следующая задача
+    check_drift = BashOperator(
+        task_id="check_drift",
+        bash_command=f"{TASK_PYTHON} /opt/airflow/scripts/check_drift.py",
+    )
+
+    # Триггерит "Data Drift Monitor" в n8n и передаёт ему результат
+    # check_drift.py как тело запроса — сам n8n дополнительно проверяет свой
+    # снапшот triage (категории/confidence/high-priority), это не дублирование.
+    notify_drift_check = BashOperator(
+        task_id="notify_drift_check",
+        bash_command=(
+            "curl -sf -X POST -H 'Content-Type: application/json' "
+            f"-d @/opt/airflow/scripts/drift_result.json {N8N_DRIFT_WEBHOOK_URL} || true"
+        ),
+    )
+
+    system_health_check >> etl_pipeline
     etl_pipeline >> [refresh_marts, load_to_clickhouse, build_features, generate_messages, notify_quality_report]
     refresh_marts >> notify_docs_refresh
-    build_features >> train_churn_model
-    generate_messages >> run_triage >> [channel_triage_summary, evaluate_llm] >> notify_drift_check
+    build_features >> train_churn_model >> mlflow_healthcheck_churn
+    generate_messages >> run_triage >> [channel_triage_summary, evaluate_llm]
+    evaluate_llm >> mlflow_healthcheck_triage
+    [channel_triage_summary, evaluate_llm] >> check_drift >> notify_drift_check

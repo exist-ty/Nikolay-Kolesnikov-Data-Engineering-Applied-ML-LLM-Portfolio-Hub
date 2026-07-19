@@ -12,3 +12,6 @@ scikit-learn
 clickhouse-connect
 requests
 pydantic
+# версия зафиксирована ровно под образ сервера mlflow в docker-compose.yml
+# (ghcr.io/mlflow/mlflow:v2.19.0) — см. README product-marketing-analytics
+mlflow==2.19.0

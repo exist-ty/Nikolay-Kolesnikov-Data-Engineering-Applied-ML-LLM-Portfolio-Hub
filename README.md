@@ -59,7 +59,7 @@ graph TD
 - pydantic — валидация структурированного вывода LLM с retry-логикой
 
 **Orchestration**
-- Apache Airflow 2.10 (LocalExecutor) — DAG на 12 задач через три репозитория
+- Apache Airflow 2.10 (LocalExecutor) — DAG на 16 задач через три репозитория
   + event-driven вызовы n8n, реальные зависимости вместо ручного "сначала
   запусти это, потом то" из README
 - Изолированный venv для тасков отдельно от окружения самого Airflow (см.
@@ -119,7 +119,7 @@ graph TD
   индекс, реальный выигрыш 1.6x–16x в зависимости от витрины — не одно
   универсальное число.
 - **Оркестрировал через Airflow и нашёл конфликт зависимостей до
-  продакшна**: DAG на 12 задач одним прогоном через все репозитории
+  продакшна**: DAG на 16 задач одним прогоном через все репозитории
   (Docker — Airflow официально не поддерживает Windows). Установка
   зависимостей тасков в окружение самого Airflow сломала бы его
   веб-интерфейс (конфликт версий `sqlalchemy`) — решение: отдельный venv
@@ -198,21 +198,27 @@ pytest                       # проверить, что окружение г�
 Три репозитория выше документируют свои зависимости в README как ручные
 инструкции ("сначала прогони X, потом Y") — реальные зависимости между
 задачами, просто не выраженные явно. `dags/ecosystem_pipeline_dag.py`
-превращает их в настоящий DAG на 12 задач (9 задач самого пайплайна +
-3 `notify_*`, которые будят соответствующие воркфлоу в
-`n8n-business-automation` через webhook):
+превращает их в настоящий DAG на 16 задач: 9 задач самого пайплайна,
+3 `notify_*` (будят воркфлоу в `n8n-business-automation` через webhook),
+`system_health_check` (Postgres/ClickHouse/Ollama/MLflow до старта пайплайна,
+`scripts/health_check.py`), `check_drift` (дрейф `total_amount` неделя к
+неделе, `scripts/check_drift.py` — результат передаётся `notify_drift_check`
+как тело POST-запроса) и два `mlflow_healthcheck_*` после обучения модели и
+триажа:
 
 ```mermaid
 graph TD
-    A[etl_pipeline] --> B[notify_quality_report]
+    S[system_health_check] --> A[etl_pipeline]
+    A --> B[notify_quality_report]
     A --> C[refresh_marts] --> D[notify_docs_refresh]
     A --> E[load_to_clickhouse]
-    A --> F[build_features] --> G[train_churn_model]
+    A --> F[build_features] --> G[train_churn_model] --> M1[mlflow_healthcheck_churn]
     A --> H[generate_messages] --> I[run_triage]
     I --> J[channel_triage_summary]
-    I --> K[evaluate_llm]
-    J --> L[notify_drift_check]
-    K --> L
+    I --> K[evaluate_llm] --> M2[mlflow_healthcheck_triage]
+    J --> P[check_drift]
+    K --> P
+    P --> L[notify_drift_check]
 ```
 
 **Почему Docker, а не нативный Windows.** Apache Airflow официально не
@@ -264,8 +270,8 @@ UI — `http://localhost:8080` (admin/admin, создаётся `airflow-init`
 `curl` уходил из контейнера, n8n отвечал `{"message":"Workflow was
 started"}`, задача помечалась `SUCCESS`. Честная оговорка: это три
 изолированных прогона одной задачи, а не один свежий сквозной прогон
-всех 12 задач подряд — таймингов вроде "51 минута" для новой,
-12-задачной версии DAG пока нет. Два дополнительных честных наблюдения
+всех 16 задач подряд — таймингов вроде "51 минута" для новой,
+16-задачной версии DAG пока нет. Два дополнительных честных наблюдения
 из того самого прогона на 9 задач:
 
 - **`run_triage` занял ~51 минуту** вместо задокументированных в
@@ -281,6 +287,22 @@ started"}`, задача помечалась `SUCCESS`. Честная огов
   живая иллюстрация уже честно задокументированной оговорки "n=45 не
   статистически значимо" — теперь с фактическим повторным измерением, а не
   только предупреждением в тексте.
+
+**Проверка 4 новых задач (`system_health_check`, `check_drift`,
+`mlflow_healthcheck_churn`, `mlflow_healthcheck_triage`).** Тем же способом —
+`airflow tasks test` внутри контейнера, не изолированный запуск скрипта
+руками. Нашли и починили один реальный баг и одну реальную (не тестовую)
+проблему инфраструктуры:
+
+- **`check_drift` падал с `TypeError: Object of type bool is not JSON
+  serializable`** — `drift_detected` был `numpy.bool_` (результат сравнения
+  `numpy.float64`), а не встроенный `bool`; в отличие от `numpy.float64`
+  (де-факто подкласс `float`, `json.dumps` его принимает), `numpy.bool_`
+  роняет сериализацию. Починено явным `bool(...)`.
+- **`system_health_check` реально поймал ClickHouse в состоянии `Exited`**
+  (контейнер лежал ещё с предыдущей перезагрузки Docker Desktop) —
+  `status: "ERROR"` с точным сообщением о недоступности `host.docker.internal:8123`,
+  задача честно упала с ненулевым кодом. После `docker start` — `OK`.
 
 ## 🤖 Бизнес-автоматизация (n8n)
 

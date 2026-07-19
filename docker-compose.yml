@@ -34,8 +34,12 @@ x-airflow-common: &airflow-common
     N8N_QUALITY_WEBHOOK_URL: http://host.docker.internal:5678/webhook/etl-quality-report
     N8N_DOCS_WEBHOOK_URL: http://host.docker.internal:5678/webhook/docs-refresh
     N8N_DRIFT_WEBHOOK_URL: http://host.docker.internal:5678/webhook/triage-drift-check
+    # mlflow — сервис в этом же docker-compose (см. ниже), поэтому по имени
+    # сервиса в общей compose-сети, а не host.docker.internal
+    MLFLOW_TRACKING_URI: http://mlflow:5501
   volumes: &airflow-common-volumes
     - ./dags:/opt/airflow/dags
+    - ./scripts:/opt/airflow/scripts
     - airflow-logs:/opt/airflow/logs
     - ../etl-portfolio:/opt/repos/etl-portfolio
     - ../product-marketing-analytics:/opt/repos/product-marketing-analytics
@@ -47,6 +51,19 @@ x-airflow-common: &airflow-common
       condition: service_healthy
 
 services:
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.19.0
+    command: >
+      mlflow server
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --default-artifact-root /mlflow/artifacts
+      --host 0.0.0.0
+      --port 5501
+    ports:
+      - "5501:5501"
+    volumes:
+      - mlflow-data:/mlflow
+
   airflow-postgres:
     image: postgres:16-alpine
     environment:
@@ -95,3 +112,4 @@ services:
 volumes:
   airflow-postgres-data:
   airflow-logs:
+  mlflow-data:
