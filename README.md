@@ -1,4 +1,4 @@
-# Nikolay Kolesnikov — Data Engineering & Applied ML/LLM Portfolio Hub
+# Nikolay-Kolesnikov-portfolio-hub
 
 ![Tests](https://github.com/exist-ty/Nikolay-Kolesnikov-Data-Engineering-Applied-ML-LLM-Portfolio-Hub/actions/workflows/test.yml/badge.svg)
 
