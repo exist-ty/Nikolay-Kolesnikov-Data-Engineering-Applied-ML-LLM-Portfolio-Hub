@@ -59,7 +59,7 @@ graph TD
 
 <table>
 <tr>
-<td><img src="assets/postgres_vs_clickhouse.png" width="420" alt="Postgres vs ClickHouse benchmark"></td>
+<td><img src="assets/metabase_dashboard.png" width="420" alt="Metabase: Product Marketing Analytics dashboard"></td>
 <td><img src="assets/ab_test_power.png" width="420" alt="A/B test power analysis"></td>
 </tr>
 <tr>
@@ -67,6 +67,10 @@ graph TD
 <td><img src="assets/feature_importance.png" width="420" alt="Churn model feature importance"></td>
 </tr>
 </table>
+
+Живой дашборд в Metabase (12 карточек: CAC/CPL/ROMI по каналам, LTV,
+retention) — подробности и полные скриншоты в README
+[`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics#дашборд).
 
 ## 🏆 Ключевые технические достижения
 
