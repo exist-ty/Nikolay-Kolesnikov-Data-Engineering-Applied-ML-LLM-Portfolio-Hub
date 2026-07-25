@@ -6,26 +6,45 @@
 задачами, просто не выраженные явно. `dags/ecosystem_pipeline_dag.py`
 превращает их в настоящий DAG на 16 задач: 9 задач самого пайплайна,
 3 `notify_*` (будят воркфлоу в `n8n-business-automation` через webhook),
-`system_health_check` (Postgres/ClickHouse/Ollama/MLflow до старта пайплайна,
-`scripts/health_check.py`), `check_drift` (дрейф `total_amount` неделя к
-неделе, `scripts/check_drift.py` — результат передаётся `notify_drift_check`
-как тело POST-запроса) и два `mlflow_healthcheck_*` после обучения модели и
-триажа:
+3 `health_check_*` (`scripts/health_check.py`) и `check_drift` (дрейф
+`total_amount` неделя к неделе, `scripts/check_drift.py` — результат
+передаётся `notify_drift_check` как тело POST-запроса):
 
 ```mermaid
 graph TD
-    S[system_health_check] --> A[etl_pipeline]
+    S[health_check_core<br/>postgres, clickhouse] --> A[etl_pipeline]
     A --> B[notify_quality_report]
     A --> C[refresh_marts] --> D[notify_docs_refresh]
     A --> E[load_to_clickhouse]
-    A --> F[build_features] --> G[train_churn_model] --> M1[mlflow_healthcheck_churn]
+    A --> F[build_features] --> G[train_churn_model]
     A --> H[generate_messages] --> I[run_triage]
     I --> J[channel_triage_summary]
-    I --> K[evaluate_llm] --> M2[mlflow_healthcheck_triage]
+    I --> K[evaluate_llm]
     J --> P[check_drift]
     K --> P
     P --> L[notify_drift_check]
+    M[health_check_mlflow] --> G
+    M --> I
+    O[health_check_ollama] --> I
 ```
+
+**Почему три health-проверки, а не одна.** Сначала здесь был единственный
+`system_health_check`, проверявший все четыре сервиса сразу и стоявший
+корнем всего графа. Это связывало несвязанное: неподнятый Ollama блокировал
+в том числе `refresh_marts` и `load_to_clickhouse`, которым Ollama не нужен
+вообще. Теперь каждая ветка гейтится ровно своими сервисами. Заодно исчезли
+два `mlflow_healthcheck_*`, стоявшие ПОСЛЕ `train_churn_model` и
+`evaluate_llm`: проверять доступность трекинга осмысленно до обучения, а не
+после — падать на недоступном MLflow через 24 минуты инференса дорого.
+
+**Почему WARNING не роняет задачу.** `health_check.py` возвращает 1 только
+на `ERROR` (сервис недоступен). `WARNING` — пустая таблица или несвежие
+данные — печатается в лог, но пайплайн не блокирует. Раньше WARNING тоже
+возвращал 1, и поскольку health check стоит корнем ветки, любой варнинг
+останавливал весь граф. С замороженным датасетом (`order_date` не позже
+2025-12-31, см. `etl-portfolio/scripts/generate_data.py`) при
+`STALE_DAYS=400` это гарантированно положило бы весь пайплайн в начале
+февраля 2027 — отложенный отказ, который не проявился бы до самого дня.
 
 **Почему Docker, а не нативный Windows.** Apache Airflow официально не
 поддерживает Windows (только Linux/macOS/WSL2). Стек — Postgres для
@@ -96,18 +115,21 @@ started"}`, задача помечалась `SUCCESS`. Честная огов
   статистически значимо" — теперь с фактическим повторным измерением, а не
   только предупреждением в тексте.
 
-**Проверка 4 новых задач (`system_health_check`, `check_drift`,
-`mlflow_healthcheck_churn`, `mlflow_healthcheck_triage`).** Тем же способом —
-`airflow tasks test` внутри контейнера, не изолированный запуск скрипта
-руками. Нашли и починили один реальный баг и одну реальную (не тестовую)
-проблему инфраструктуры:
+**Проверка 4 новых задач** (тогда — `system_health_check`, `check_drift`,
+`mlflow_healthcheck_churn`, `mlflow_healthcheck_triage`; первая и две
+последние с тех пор заменены на три `health_check_*`, см. выше). Тем же
+способом — `airflow tasks test` внутри контейнера, не изолированный запуск
+скрипта руками. Нашли и починили один реальный баг и одну реальную (не
+тестовую) проблему инфраструктуры:
 
 - **`check_drift` падал с `TypeError: Object of type bool is not JSON
   serializable`** — `drift_detected` был `numpy.bool_` (результат сравнения
   `numpy.float64`), а не встроенный `bool`; в отличие от `numpy.float64`
   (де-факто подкласс `float`, `json.dumps` его принимает), `numpy.bool_`
-  роняет сериализацию. Починено явным `bool(...)`.
-- **`system_health_check` реально поймал ClickHouse в состоянии `Exited`**
+  роняет сериализацию. Починено явным `bool(...)` — и с тех пор закрыто
+  тестом (`tests/test_check_drift.py::test_result_is_json_serializable`):
+  баг нашёлся руками в прогоне, но повторно проходить мимо CI он не должен.
+- **health check реально поймал ClickHouse в состоянии `Exited`**
   (контейнер лежал ещё с предыдущей перезагрузки Docker Desktop) —
   `status: "ERROR"` с точным сообщением о недоступности `host.docker.internal:8123`,
   задача честно упала с ненулевым кодом. После `docker start` — `OK`.

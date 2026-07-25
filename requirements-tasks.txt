@@ -1,17 +1,27 @@
-# Объединённые зависимости скриптов трёх соседних репозиториев
-# (etl-portfolio, product-marketing-analytics, support-triage-llm),
-# устанавливаются поверх официального образа apache/airflow — см.
-# Dockerfile и README, раздел «Оркестрация (Airflow)».
-pandas
-numpy
-sqlalchemy
-psycopg2-binary
-python-dotenv
-matplotlib
-scikit-learn
-clickhouse-connect
-requests
-pydantic
-# версия зафиксирована ровно под образ сервера mlflow в docker-compose.yml
-# (ghcr.io/mlflow/mlflow:v2.19.0) — см. README product-marketing-analytics
+# Зафиксированные версии зависимостей task-venv. Исходник намерения —
+# requirements-tasks.in, команда пересборки описана там же.
+#
+# Зачем пины: без них `docker build` через полгода ставит другой pandas и
+# другой scikit-learn, чем сегодня, и «у меня работает» перестаёт что-либо
+# значить. Ирония в том, что весь ADR 005 — про то, как разъехавшиеся версии
+# SQLAlchemy сломали вебсервер Airflow; файл, который эту изоляцию держит,
+# сам не должен плыть.
+#
+# Версии — то, что резолвер pip выбирает для CPython 3.11 сегодня, то есть
+# поведение сборки не меняется, а фиксируется. Совместимость набора проверяет
+# CI: джоба `build-image` в .github/workflows/test.yml собирает образ на
+# ubuntu, то есть на той же платформе, что и рабочий контейнер.
+#
+# Транзитивные зависимости здесь намеренно не перечислены: полный lock из ~76
+# строк должен генерироваться pip-compile в Linux, а не поддерживаться руками.
+clickhouse-connect==1.6.0
+matplotlib==3.11.1
 mlflow==2.19.0
+numpy==2.4.6
+pandas==2.3.3
+psycopg2-binary==2.9.12
+pydantic==2.13.4
+python-dotenv==1.2.2
+requests==2.34.2
+scikit-learn==1.9.0
+sqlalchemy==2.0.51

@@ -1,15 +1,31 @@
-"""Проверяет доступность и базовую "живость" всех сервисов экосистемы —
+"""Проверяет доступность и базовую "живость" сервисов экосистемы —
 PostgreSQL (etl_portfolio), ClickHouse, Ollama, MLflow — и печатает один JSON
-с посервисным статусом (OK/WARNING/ERROR). Возвращает код выхода 1, если
-хотя бы один сервис не OK — чтобы Airflow мог зафейлить задачу на этом.
+с посервисным статусом (OK/WARNING/ERROR).
 
-STALE_DAYS: датасет синтетический, даты заказов заморожены в 2025 году
-(см. etl-portfolio/scripts/generate_data.py) — свежесть здесь означает
-"максимальная order_date не отстаёт от текущей даты больше чем на N дней",
-и со временем (когда система запускается в будущем) эта проверка рано или
-поздно честно уйдёт в WARNING, если датасет не перегенерировать. Это
-ожидаемое поведение для замороженных синтетических данных, не баг проверки.
+Коды выхода:
+  0 — все проверенные сервисы OK или WARNING
+  1 — хотя бы один ERROR (сервис недоступен)
+
+WARNING сознательно НЕ роняет задачу: "таблица пустая" или "данные
+несвежие" — это сигнал, а не отказ инфраструктуры. Раньше WARNING возвращал
+1 и, поскольку health check стоит корнем DAG с retries=0, любой варнинг
+блокировал все 16 задач, включая те, что от свежести не зависят вообще.
+С замороженным датасетом (order_date не позже 2025-12-31, см.
+etl-portfolio/scripts/generate_data.py) при STALE_DAYS=400 это гарантированно
+положило бы весь пайплайн в начале февраля 2027.
+
+Выбор сервисов: `--services postgres,clickhouse`. DAG проверяет не всё сразу,
+а только то, что нужно конкретной ветке графа, — иначе неподнятый Ollama
+блокирует чисто postgres'овые витрины, которым он не нужен
+(см. dags/ecosystem_pipeline_dag.py).
+
+STALE_DAYS: датасет синтетический, даты заказов заморожены в 2025 году —
+свежесть здесь означает "максимальная order_date не отстаёт от текущей даты
+больше чем на N дней", и со временем эта проверка честно уйдёт в WARNING,
+если датасет не перегенерировать. Это ожидаемое поведение для замороженных
+синтетических данных, не баг проверки.
 """
+import argparse
 import json
 import os
 import sys
@@ -94,15 +110,47 @@ def check_mlflow() -> dict:
         return {"status": "ERROR", "error": str(e)}
 
 
-def main() -> int:
-    report = {
-        "postgres": check_postgres(),
-        "clickhouse": check_clickhouse(),
-        "ollama": check_ollama(),
-        "mlflow": check_mlflow(),
-    }
+CHECKS = {
+    "postgres": check_postgres,
+    "clickhouse": check_clickhouse,
+    "ollama": check_ollama,
+    "mlflow": check_mlflow,
+}
+
+
+def build_report(services) -> dict:
+    return {name: CHECKS[name]() for name in services}
+
+
+def exit_code(report: dict) -> int:
+    """1 только на ERROR — WARNING не должен ронять DAG (см. докстринг)."""
+    return 1 if any(r["status"] == "ERROR" for r in report.values()) else 0
+
+
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--services",
+        default=",".join(CHECKS),
+        help="Список сервисов через запятую: " + ", ".join(CHECKS),
+    )
+    args = parser.parse_args(argv)
+    services = [s.strip() for s in args.services.split(",") if s.strip()]
+    unknown = [s for s in services if s not in CHECKS]
+    if unknown:
+        parser.error(f"unknown service(s): {', '.join(unknown)}; available: {', '.join(CHECKS)}")
+    return services
+
+
+def main(argv=None) -> int:
+    services = parse_args(argv)
+    report = build_report(services)
+    warnings = [name for name, r in report.items() if r["status"] == "WARNING"]
+    if warnings:
+        # Видно в логе задачи Airflow, но задачу не роняет
+        print(f"WARNING (не блокирует пайплайн): {', '.join(warnings)}", file=sys.stderr)
     print(json.dumps(report, indent=2, ensure_ascii=False))
-    return 0 if all(r["status"] == "OK" for r in report.values()) else 1
+    return exit_code(report)
 
 
 if __name__ == "__main__":

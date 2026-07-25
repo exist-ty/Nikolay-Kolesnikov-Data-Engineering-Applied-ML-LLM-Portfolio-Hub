@@ -7,24 +7,34 @@ docker-compose.yml), каждый смонтирован в контейнер �
 Каждая задача — BashOperator, переходящий в каталог соответствующего
 репозитория и запускающий его собственный скрипт тем же способом, что и
 при ручном запуске (см. README каждого репозитория), но через отдельный
-venv в `/home/airflow/task-venv` (не через python самого Airflow — см. Dockerfile: Airflow
-2.x жёстко требует `sqlalchemy<2.0`, а репозиториям нужен `sqlalchemy>=2.0`,
+venv в `/home/airflow/task-venv` (не через python самого Airflow — см. Dockerfile:
+Airflow 2.x жёстко требует `sqlalchemy<2.0`, а репозиториям нужен `sqlalchemy>=2.0`,
 общее окружение сломало бы веб-интерфейс Airflow). Переменные подключения
 (DB_HOST и т.д.) переопределены на уровне контейнера (docker-compose.yml)
 на `host.docker.internal` вместо `localhost` из `.env` каждого репозитория —
 `python-dotenv` не перезаписывает уже установленные переменные окружения,
 поэтому конфликта нет.
+
+Health check разбит по веткам, а не один общий корень: раньше единственный
+`system_health_check` проверял все четыре сервиса сразу и был корнем всего
+графа, поэтому неподнятый Ollama блокировал в том числе чисто postgres'овые
+витрины, которым Ollama не нужен. Теперь каждая ветка гейтится ровно теми
+сервисами, от которых зависит (см. scripts/health_check.py --services).
+Проверка MLflow при этом стоит ДО дорогих задач (train_churn_model ~минуты,
+run_triage ~24-51 минуты), а не после них — падать на недоступном трекинге
+имеет смысл до обучения, а не после.
 """
 import json
 import os
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 
 REPOS = "/opt/repos"
 TASK_PYTHON = "/home/airflow/task-venv/bin/python"
+HEALTH_CHECK = f"{TASK_PYTHON} /opt/airflow/scripts/health_check.py"
 
 # n8n живёт в соседнем репозитории (n8n-business-automation), поднимается
 # отдельным docker-compose и слушает на host.docker.internal:5678 — тот же
@@ -53,7 +63,9 @@ def notify_failure(context):
     payload = {
         "dag_id": context["dag"].dag_id,
         "task_id": context["task_instance"].task_id,
-        "execution_date": str(context["execution_date"]),
+        # logical_date, а не execution_date: последний устарел в Airflow 2.2,
+        # даёт DeprecationWarning в 2.10 и удалён в Airflow 3
+        "logical_date": str(context["logical_date"]),
         "exception": str(context.get("exception")),
         "log_url": context["task_instance"].log_url,
     }
@@ -72,7 +84,15 @@ def notify_failure(context):
 
 default_args = {
     "owner": "nikolay-kolesnikov",
-    "retries": 0,
+    # Одна повторная попытка: почти все задачи здесь ходят по сети (Postgres,
+    # ClickHouse, Ollama, MLflow, n8n) и разовый обрыв не повод ронять
+    # 40-минутный прогон. Задачи идемпотентны — скрипты пересоздают свой
+    # результат целиком, а не дописывают.
+    "retries": 1,
+    "retry_delay": timedelta(minutes=2),
+    # Верхняя граница по умолчанию — чтобы зависшая сетевая задача не держала
+    # слот LocalExecutor бесконечно. Долгий run_triage переопределяет её ниже.
+    "execution_timeout": timedelta(minutes=20),
     "on_failure_callback": notify_failure,
 }
 
@@ -83,17 +103,34 @@ with DAG(
     schedule=None,
     start_date=datetime(2026, 1, 1),
     catchup=False,
+    # run_triage один занимает до ~51 минуты (CPU-инференс), остальной граф
+    # ~10 минут; 3 часа — заведомо больше честного прогона, но конечны
+    dagrun_timeout=timedelta(hours=3),
     tags=["portfolio", "etl", "analytics", "llm"],
 ) as dag:
 
-    # Проверяет Postgres/ClickHouse/Ollama/MLflow ДО начала пайплайна — не
-    # блокирует падением сам etl_pipeline (у него нет retry на недоступность
-    # соседних сервисов), но даёт понятный сигнал в UI Airflow до того, как
-    # непонятная ошибка всплывёт где-то в середине графа
-    system_health_check = BashOperator(
-        task_id="system_health_check",
-        bash_command=f"{TASK_PYTHON} /opt/airflow/scripts/health_check.py",
+    # --- Health-гейты по веткам -------------------------------------------
+    # Возвращают 1 только если сервис недоступен (ERROR). WARNING — пустая
+    # таблица, несвежие данные — печатается в лог, но пайплайн не блокирует
+    # (см. scripts/health_check.py).
+
+    health_check_core = BashOperator(
+        task_id="health_check_core",
+        bash_command=f"{HEALTH_CHECK} --services postgres,clickhouse",
     )
+
+    # Нужен train_churn_model и run_triage/evaluate_llm — обе пишут run в MLflow
+    health_check_mlflow = BashOperator(
+        task_id="health_check_mlflow",
+        bash_command=f"{HEALTH_CHECK} --services mlflow",
+    )
+
+    health_check_ollama = BashOperator(
+        task_id="health_check_ollama",
+        bash_command=f"{HEALTH_CHECK} --services ollama",
+    )
+
+    # --- Пайплайн ---------------------------------------------------------
 
     etl_pipeline = BashOperator(
         task_id="etl_pipeline",
@@ -104,9 +141,13 @@ with DAG(
     # тот сам выполняет проверки (NULL/дубликаты/orphan FK/row count) и шлёт
     # отчёт в Telegram — curl тут только будит воркфлоу, логика проверок
     # живёт в n8n, не дублируется здесь.
+    # Раньше здесь стоял `|| true`: задача не могла упасть никогда, и лежащий
+    # n8n (или переименованный webhook) выглядел в UI зелёным, а отчёт просто
+    # не приходил. `curl -sf` возвращает ненулевой код на HTTP >= 400 — этого
+    # достаточно, чтобы задача честно покраснела.
     notify_quality_report = BashOperator(
         task_id="notify_quality_report",
-        bash_command=f"curl -sf -X POST {N8N_QUALITY_WEBHOOK_URL} || true",
+        bash_command=f"curl -sfS --max-time 30 -X POST {N8N_QUALITY_WEBHOOK_URL}",
     )
 
     refresh_marts = BashOperator(
@@ -118,7 +159,7 @@ with DAG(
     # pg_catalog + data_catalog_descriptions и обновляет страницу в Notion.
     notify_docs_refresh = BashOperator(
         task_id="notify_docs_refresh",
-        bash_command=f"curl -sf -X POST {N8N_DOCS_WEBHOOK_URL} || true",
+        bash_command=f"curl -sfS --max-time 30 -X POST {N8N_DOCS_WEBHOOK_URL}",
     )
 
     load_to_clickhouse = BashOperator(
@@ -136,25 +177,21 @@ with DAG(
         bash_command=f"cd {REPOS}/product-marketing-analytics && {TASK_PYTHON} ml/train_churn_model.py",
     )
 
-    # train_churn_model уже упал бы, если бы MLflow был недоступен (сам пишет
-    # туда run) — эта задача отдельно проверяет доступность сервиса как
-    # самостоятельный сигнал в UI Airflow, не полагаясь на косвенный вывод
-    # из успеха предыдущей задачи
-    mlflow_healthcheck_churn = BashOperator(
-        task_id="mlflow_healthcheck_churn",
-        bash_command=f"curl -sf {MLFLOW_TRACKING_URI}/health",
-    )
-
     generate_messages = BashOperator(
         task_id="generate_messages",
         bash_command=f"cd {REPOS}/support-triage-llm && {TASK_PYTHON} scripts/generate_messages.py",
     )
 
-    # ~24 минуты на этом железе (CPU-инференс Qwen2.5-3B, 45 сообщений) —
-    # см. README support-triage-llm, «Честные ограничения». Не зависание.
+    # ~24-51 минута на этом железе (CPU-инференс Qwen2.5-3B, 45 сообщений) —
+    # см. README support-triage-llm, «Честные ограничения». Не зависание,
+    # поэтому дефолтные 20 минут переопределены. Повтор здесь отключён:
+    # ретрай часового инференса из-за сетевого сбоя дороже, чем перезапуск
+    # задачи руками.
     run_triage = BashOperator(
         task_id="run_triage",
         bash_command=f"cd {REPOS}/support-triage-llm && {TASK_PYTHON} scripts/run_triage.py",
+        execution_timeout=timedelta(hours=2),
+        retries=0,
     )
 
     channel_triage_summary = BashOperator(
@@ -165,11 +202,6 @@ with DAG(
     evaluate_llm = BashOperator(
         task_id="evaluate_llm",
         bash_command=f"cd {REPOS}/support-triage-llm && {TASK_PYTHON} scripts/evaluate_llm.py",
-    )
-
-    mlflow_healthcheck_triage = BashOperator(
-        task_id="mlflow_healthcheck_triage",
-        bash_command=f"curl -sf {MLFLOW_TRACKING_URI}/health",
     )
 
     # Считает дрейф РАСПРЕДЕЛЕНИЯ ЗАКАЗОВ (total_amount, неделя к неделе,
@@ -187,15 +219,19 @@ with DAG(
     notify_drift_check = BashOperator(
         task_id="notify_drift_check",
         bash_command=(
-            "curl -sf -X POST -H 'Content-Type: application/json' "
-            f"-d @/opt/airflow/scripts/drift_result.json {N8N_DRIFT_WEBHOOK_URL} || true"
+            "curl -sfS --max-time 30 -X POST -H 'Content-Type: application/json' "
+            f"-d @/opt/airflow/scripts/drift_result.json {N8N_DRIFT_WEBHOOK_URL}"
         ),
     )
 
-    system_health_check >> etl_pipeline
+    health_check_core >> etl_pipeline
     etl_pipeline >> [refresh_marts, load_to_clickhouse, build_features, generate_messages, notify_quality_report]
     refresh_marts >> notify_docs_refresh
-    build_features >> train_churn_model >> mlflow_healthcheck_churn
+    build_features >> train_churn_model
     generate_messages >> run_triage >> [channel_triage_summary, evaluate_llm]
-    evaluate_llm >> mlflow_healthcheck_triage
     [channel_triage_summary, evaluate_llm] >> check_drift >> notify_drift_check
+
+    # MLflow нужен train_churn_model и run_triage (evaluate_llm получает
+    # гарантию транзитивно через run_triage), Ollama — только run_triage
+    health_check_mlflow >> [train_churn_model, run_triage]
+    health_check_ollama >> run_triage

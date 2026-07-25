@@ -3,6 +3,21 @@ name: Tests
 on: [push, pull_request]
 
 jobs:
+  # Юнит-тесты скриптов хаба. Airflow тут не ставится: тесты DAG
+  # (tests/test_dag_structure.py) сами пропускаются через importorskip и
+  # гоняются в джобе validate-dag ниже.
+  unit-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q pytest numpy sqlalchemy requests clickhouse-connect
+      - run: pytest -q
+
+  # Импорт DAG + структурные инварианты (число задач, таймауты, отсутствие
+  # `|| true`, разводка health-гейтов по веткам).
   validate-dag:
     runs-on: ubuntu-latest
     steps:
@@ -10,22 +25,70 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # Только pytest сверх Airflow. Ставить сюда sqlalchemy/numpy нельзя:
+      # pip подтянет SQLAlchemy 2.x, а Airflow 2.x требует <2.0 и импорт
+      # DagBag развалится — тот самый конфликт, ради которого существует
+      # отдельный task-venv (ADR 005). Тестам DAG эти пакеты и не нужны.
       - run: |
           pip install "apache-airflow==2.10.4" \
             --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.11.txt"
-      - name: Check DAG imports without errors
-        run: |
-          python -c "
-          from airflow.models import DagBag
-          bag = DagBag(dag_folder='dags', include_examples=False)
-          assert not bag.import_errors, bag.import_errors
-          assert 'ecosystem_pipeline' in bag.dags, 'ecosystem_pipeline DAG not found'
-          print(f'Loaded {len(bag.dags)} DAG(s) with no import errors')
-          "
+          pip install -q pytest
+      - run: pytest -q tests/test_dag_structure.py
 
+  # Собирает образ на Linux — это и есть проверка того, что пины в
+  # requirements-tasks.txt действительно разрешимы на целевой платформе
+  # (на Windows pip резолвит маркеры sys_platform по хосту и даёт другой
+  # набор, см. комментарий в requirements-tasks.in).
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t portfolio-hub-airflow:ci .
+      - name: Dependency set is internally consistent
+        run: |
+          docker run --rm --entrypoint /home/airflow/task-venv/bin/pip \
+            portfolio-hub-airflow:ci check
+      - name: Installed versions match the pins
+        run: |
+          docker run --rm --entrypoint /home/airflow/task-venv/bin/pip \
+            portfolio-hub-airflow:ci freeze > frozen.txt
+          python - <<'PY'
+          import re, sys
+          norm = lambda n: re.sub(r"[-_.]+", "-", n).lower()
+          frozen = {}
+          for line in open("frozen.txt", encoding="utf-8"):
+              if "==" in line:
+                  name, _, ver = line.strip().partition("==")
+                  frozen[norm(name)] = ver
+          bad = []
+          for line in open("requirements-tasks.txt", encoding="utf-8"):
+              line = line.split("#")[0].strip()
+              if not line:
+                  continue
+              name, _, ver = line.partition("==")
+              got = frozen.get(norm(name))
+              if got != ver:
+                  bad.append(f"{name}: pinned {ver}, installed {got}")
+          if bad:
+              sys.exit("образ разошёлся с пинами:\n  " + "\n  ".join(bad))
+          print(f"все {len(frozen)} пакетов установлены, пины совпадают")
+          PY
+
+  # Валидирует compose ровно тем .env, который получает новый человек по
+  # инструкции из README: копия .env.example + сгенерированный Fernet-ключ.
+  # Заодно ловит ситуацию «добавил переменную в compose, забыл в .env.example».
   validate-compose:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate docker-compose.yml syntax
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Render .env from .env.example
+        run: |
+          pip install -q cryptography
+          cp .env.example .env
+          KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+          sed -i "s|^AIRFLOW_FERNET_KEY=.*|AIRFLOW_FERNET_KEY=$KEY|" .env
+      - name: Validate docker-compose.yml
         run: docker compose config -q

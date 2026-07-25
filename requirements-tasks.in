@@ -1,0 +1,29 @@
+# Прямые зависимости скриптов трёх соседних репозиториев (etl-portfolio,
+# product-marketing-analytics, support-triage-llm), устанавливаются в
+# отдельный task-venv поверх официального образа apache/airflow — см.
+# Dockerfile и ADR 005.
+#
+# Это ИСХОДНИК намерения. Устанавливается не он, а requirements-tasks.txt с
+# точными версиями. Пересобрать после правки:
+#
+#   docker run --rm -v "$PWD:/w" -w /w python:3.11-slim sh -c \
+#     "pip install -q pip-tools && pip-compile --strip-extras -o requirements-tasks.txt requirements-tasks.in"
+#
+# Резолвить обязательно в Linux-контейнере, а не на хосте: pip вычисляет
+# маркеры вида sys_platform == "win32" по текущей машине, и на Windows набор
+# получается другой (waitress/pywin32 вместо gunicorn) — образ с таким
+# lock-файлом просто не соберётся.
+pandas
+numpy
+sqlalchemy
+psycopg2-binary
+python-dotenv
+matplotlib
+scikit-learn
+clickhouse-connect
+requests
+pydantic
+# версия зафиксирована ровно под образ сервера mlflow в docker-compose.yml
+# (ghcr.io/mlflow/mlflow:v2.19.0) — новый клиент шлёт /logged-models API,
+# которого нет в этом образе сервера (404)
+mlflow==2.19.0

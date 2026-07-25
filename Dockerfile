@@ -1,6 +1,10 @@
 FROM apache/airflow:2.10.4-python3.11
 
 USER airflow
+# Ставится зафиксированный файл, а не исходник намерения requirements-tasks.in:
+# без точных версий сборка через полгода даёт другой pandas и другой
+# scikit-learn, чем сегодня. Пины проверяются джобой build-image в CI —
+# она собирает этот же образ на Linux и сверяет pip freeze с файлом.
 COPY requirements-tasks.txt /requirements-tasks.txt
 
 # Отдельный venv для тасков, не для самого Airflow. SQLAlchemy>=2.0 нужен

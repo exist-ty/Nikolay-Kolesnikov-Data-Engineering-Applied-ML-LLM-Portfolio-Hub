@@ -28,6 +28,22 @@ pytest                       # проверить, что окружение г�
    пайплайн триажа (`python scripts/run_triage.py`).
 4. **Этот репозиторий (оркестрация)** — см. `docs/orchestration.md`.
 
+Для самого хаба `.env` заполняется чуть иначе: `AIRFLOW_FERNET_KEY` и три
+пароля к базам обязательны и не имеют значений по умолчанию — `docker
+compose` откажется стартовать, пока они пустые. Это сознательно: пустой
+Fernet-ключ означает нешифрованные Connections, которые перестают читаться
+после пересоздания контейнера, а пустой пароль раньше подставлялся молча и
+падение приходило уже из середины пайплайна.
+
+```bash
+cp .env.example .env
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+# вставить вывод в AIRFLOW_FERNET_KEY, заполнить *_PASSWORD теми же
+# значениями, что в .env соседних репозиториев
+docker compose up -d          # Airflow UI: http://localhost:8080 (admin)
+pytest                        # юнит-тесты health_check и check_drift
+```
+
 Секреты нигде не хардкожены — только через `.env`, чувствительные файлы
 исключены `.gitignore`; каждый сервис контейнеризирован и поднимается
 одной командой Docker Compose.

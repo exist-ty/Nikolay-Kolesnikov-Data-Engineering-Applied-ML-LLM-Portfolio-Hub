@@ -3,7 +3,11 @@ x-airflow-common: &airflow-common
   environment: &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
     AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:${AIRFLOW_DB_PASSWORD:-airflow}@airflow-postgres/airflow
-    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:-}
+    # Обязателен и не имеет дефолта: с пустым ключом Airflow не шифрует
+    # Connections, и всё, что было сохранено раньше, перестаёт читаться после
+    # пересоздания контейнера. Лучше громко упасть на старте, чем молча
+    # потерять подключения. Генерация ключа — см. .env.example
+    AIRFLOW__CORE__FERNET_KEY: ${AIRFLOW_FERNET_KEY:?нужен ключ, сгенерируйте по инструкции в .env.example}
     AIRFLOW__CORE__LOAD_EXAMPLES: "false"
     AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "false"
     # localhost из .env каждого репозитория внутри контейнера означал бы
@@ -15,16 +19,16 @@ x-airflow-common: &airflow-common
     DB_PORT: "5432"
     DB_NAME: etl_portfolio
     DB_USER: postgres
-    DB_PASSWORD: ${ETL_DB_PASSWORD}
+    DB_PASSWORD: ${ETL_DB_PASSWORD:?нужен тот же пароль, что в .env соответствующего репозитория}
     VECTOR_DB_HOST: host.docker.internal
     VECTOR_DB_PORT: "5433"
     VECTOR_DB_NAME: triage
     VECTOR_DB_USER: postgres
-    VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD}
+    VECTOR_DB_PASSWORD: ${VECTOR_DB_PASSWORD:?нужен тот же пароль, что в .env соответствующего репозитория}
     CLICKHOUSE_HOST: host.docker.internal
     CLICKHOUSE_PORT: "8123"
     CLICKHOUSE_USER: default
-    CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+    CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?нужен тот же пароль, что в .env соответствующего репозитория}
     OLLAMA_HOST: http://host.docker.internal:11434
     OLLAMA_CHAT_MODEL: qwen2.5:3b-instruct
     OLLAMA_EMBED_MODEL: all-minilm
@@ -81,13 +85,20 @@ services:
   airflow-init:
     <<: *airflow-common
     entrypoint: /bin/bash
+    # `|| true` в конце глушил ЛЮБУЮ ошибку создания пользователя, а не только
+    # «уже существует» — при сломанной миграции инициализация всё равно
+    # считалась успешной, и webserver стартовал в нерабочую базу. Теперь
+    # неудача прощается ровно в одном случае: админ уже есть.
     command:
       - -c
       - >
-        airflow db migrate &&
-        airflow users create --username admin --password admin
+        set -e;
+        airflow db migrate;
+        airflow users create --username admin
+        --password "${AIRFLOW_ADMIN_PASSWORD:-admin}"
         --firstname Nikolay --lastname Kolesnikov --role Admin
-        --email admin@example.com || true
+        --email admin@example.com
+        || airflow users list --output json | grep -q '"username": "admin"'
 
   airflow-webserver:
     <<: *airflow-common
