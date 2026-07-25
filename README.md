@@ -50,6 +50,7 @@ graph TD
 | Категория | Технологии |
 |---|---|
 | **Data Engineering** | PostgreSQL 17 (оконные функции, CTE, индексы на FK, `MATERIALIZED VIEW` + `REFRESH CONCURRENTLY`), ClickHouse (`MergeTree`, `AggregatingMergeTree`), pandas, SQLAlchemy, psycopg2, clickhouse-connect, pytest |
+| **Аналитика** | Реестр метрик как единственный источник истины (генерация SQL из определений), RFM по естественным разрывам, survival-анализ оттока (Kaplan-Meier, log-rank, Cox PH) с обработкой цензурирования, когортная юнит-экономика; экспериментальная платформа: always-valid p-values (mSPRT), CUPED, SRM, guardrail-метрики |
 | **ML/AI** | scikit-learn (Logistic Regression, Random Forest), Ollama (Qwen2.5-3B-Instruct + all-minilm, локальный инференс), pgvector + HNSW, гибридный поиск (RRF), pydantic, MLflow (трекинг экспериментов) |
 | **Orchestration** | Apache Airflow 2.10 (`LocalExecutor`), DAG на 16 задач через три репозитория + event-driven вызовы n8n; изолированный venv для тасков (см. [ADR 005](docs/adr/005-why-separate-venv-for-tasks.md)) |
 | **Business Automation** | n8n (self-hosted, event-driven): алерты, AI-дайджест, Notion-документация, Self-Service SQL-бот; три разграниченные read-only роли PostgreSQL под разные поверхности атаки |
@@ -94,7 +95,7 @@ retention) — подробности и полные скриншоты в READ
   Установка зависимостей тасков в окружение самого Airflow сломала бы его
   веб-интерфейс (конфликт версий SQLAlchemy) — решение задокументировано в
   [ADR 005](docs/adr/005-why-separate-venv-for-tasks.md). Живая проверка
-  новых задач (`system_health_check`, `check_drift`) поймала ещё один
+  новых задач (`health_check_*`, `check_drift`) поймала ещё один
   реальный баг (`numpy.bool_` не сериализуется в JSON) и одну реальную
   проблему инфраструктуры (упавший ClickHouse-контейнер) — подробности в
   [`docs/orchestration.md`](docs/orchestration.md).
@@ -120,5 +121,5 @@ retention) — подробности и полные скриншоты в READ
 - [`docs/orchestration.md`](docs/orchestration.md) — Airflow DAG, найденные конфликты, честные результаты прогонов.
 - [`docs/business-automation.md`](docs/business-automation.md) — n8n-автоматизация.
 - [`docs/adr/`](docs/adr/) — Architecture Decision Records: почему Airflow, почему Ollama, почему RRF, почему ClickHouse рядом с Postgres, почему отдельный venv для тасков.
-- [`docs/case_studies/`](docs/case_studies/) — три реальных инцидента (Problem → Investigation → Solution → Lesson Learned): конфликт версий SQLAlchemy, ClickHouse медленнее ожидаемого, non-determinism LLM-триажа.
-- [`docs/roadmap.md`](docs/roadmap.md) — что дальше при реальном росте (Spark, Kafka, Kubernetes, vLLM/TGI, S3+Iceberg, Grafana) и почему не нужно сейчас.
+- [`docs/case_studies/`](docs/case_studies/) — четыре разбора (Problem → Investigation → Solution → Lesson Learned): три технических инцидента (конфликт версий SQLAlchemy, ClickHouse медленнее ожидаемого, non-determinism LLM-триажа) и один продуктовый — какой канал привлечения сокращать.
+- [`docs/roadmap.md`](docs/roadmap.md) — две части: отложенное осознанно (Spark, Kafka, Kubernetes, vLLM/TGI, S3+Iceberg, Grafana) с триггерами перехода и следующие шаги (dbt, инкрементальность и backfill, SCD2, контракты данных, OpenLineage, CI с живой БД).
