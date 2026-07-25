@@ -47,6 +47,13 @@ x-airflow-common: &airflow-common
     - airflow-logs:/opt/airflow/logs
     - ../etl-portfolio:/opt/repos/etl-portfolio
     - ../product-marketing-analytics:/opt/repos/product-marketing-analytics
+    # MLflow с локальным artifact-root (--default-artifact-root /mlflow/artifacts,
+    # см. сервис mlflow ниже) требует, чтобы КЛИЕНТ писал артефакты на тот же
+    # диск, что и сервер — mlflow.sklearn.log_model() не проксирует запись через
+    # HTTP, а обращается к artifact_uri как к локальному пути. Без этого маунта
+    # train_churn_model падает с PermissionError: '/mlflow' (путь просто не
+    # существует в контейнере airflow).
+    - mlflow-data:/mlflow
     - ../llm-practice:/opt/repos/support-triage-llm
   extra_hosts:
     - "host.docker.internal:host-gateway"
@@ -57,12 +64,21 @@ x-airflow-common: &airflow-common
 services:
   mlflow:
     image: ghcr.io/mlflow/mlflow:v2.19.0
+    # chmod при каждом старте, не только один раз вручную: /mlflow теперь
+    # смонтирован и в контейнеры airflow (см. airflow-common-volumes выше) —
+    # mlflow.sklearn.log_model() пишет туда напрямую как в локальный путь, не
+    # через HTTP API. На свежем томе каталог создаётся этим (mlflow) образом
+    # от root, а airflow-процесс работает под uid 50000 — без group-write
+    # получаем PermissionError: '/mlflow', реально пойманный живым прогоном
+    # DAG. Живёт в command, а не только в текущем состоянии тома, чтобы
+    # `docker volume rm mlflow-data` не воскресил баг.
     command: >
+      sh -c "chmod -R g+rwX /mlflow &&
       mlflow server
       --backend-store-uri sqlite:////mlflow/mlflow.db
       --default-artifact-root /mlflow/artifacts
       --host 0.0.0.0
-      --port 5501
+      --port 5501"
     ports:
       - "5501:5501"
     volumes:
