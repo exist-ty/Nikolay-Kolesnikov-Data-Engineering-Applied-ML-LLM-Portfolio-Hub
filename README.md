@@ -169,7 +169,7 @@ retention) — подробности и полные скриншоты в READ
   триаж обращений локальной LLM с гибридным RAG-поиском.
 - [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation) —
   event-driven автоматизация: алерты, дайджест, Self-Service SQL-бот.
-- **Этот репозиторий** — Airflow DAG, оркестрирующий три репозитория выше.
+- **Этот репозиторий** — Airflow DAG, оркестрирующий четыре репозитория выше.
 
 Полный разбор каждого — [`docs/architecture.md`](docs/architecture.md).
 
