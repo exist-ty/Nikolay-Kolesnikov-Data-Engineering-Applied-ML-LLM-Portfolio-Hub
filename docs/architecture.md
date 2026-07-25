@@ -35,6 +35,11 @@ Report, Notion-документация) и витрины `product-marketing-an
 - **[etl-portfolio](https://github.com/exist-ty/etl-portfolio)** — надёжный
   ETL-пайплайн, превращающий "грязные" сырые данные интернет-магазина в
   проиндексированный staging-слой PostgreSQL, готовый к аналитике и ML.
+  Отдельно от основного DAG (`run()`, полная перезаливка) — watermark-инкремент
+  по `order_date` с upsert и реальный backfill за весь 2025 год (365 дней,
+  1985 заказов через `ON CONFLICT DO UPDATE`, идемпотентность проверена
+  тестом, не обещанием); в сам DAG пока не переключено, см.
+  [`docs/roadmap.md`](roadmap.md).
 - **[product-marketing-analytics](https://github.com/exist-ty/product-marketing-analytics)** —
   SQL-витрины юнит-экономики (CAC/CPL/ROMI, LTV, retention) с материализованными
   версиями, модель прогнозирования оттока клиентов, ClickHouse OLAP-слой с
@@ -56,11 +61,15 @@ Report, Notion-документация) и витрины `product-marketing-an
 - **[support-triage-llm](https://github.com/exist-ty/support-triage-llm)** —
   автоматическая классификация и приоритизация обращений в поддержку локальной
   LLM с гибридным (векторный + полнотекстовый, RRF) RAG-поиском и
-  количественной оценкой качества.
+  количественной оценкой качества. Отдельно, опционально — честное сравнение
+  с облачной Llama 3.3 70B Instruct (Groq API) на том же пайплайне и промпте:
+  accuracy 0.733 → 0.911, задержка ~24.6с → ~2.0с (n=45, `compare_models.py`).
 - **[n8n-business-automation](https://github.com/exist-ty/n8n-business-automation)** —
   event-driven автоматизация вокруг DAG: алерты об ошибках/дрейфе данных,
   еженедельный AI-дайджест, Notion-документация, Self-Service Analytics Bot
-  в Telegram.
+  в Telegram. AI-дайджест переключаем между локальной Qwen (по умолчанию) и
+  облачной Llama 3.3 70B (`DIGEST_LLM_BACKEND=groq`) — HTTP-вызов и
+  Bearer-аутентификация проверены вживую из контейнера n8n.
 - **Этот репозиторий** — помимо документации, `docker-compose.yml` +
   `dags/ecosystem_pipeline_dag.py`: Airflow (LocalExecutor) оркестрирует
   основной пайплайн трёх репозиториев выше (etl-portfolio,

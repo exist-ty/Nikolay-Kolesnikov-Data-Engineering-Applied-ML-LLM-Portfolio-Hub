@@ -59,7 +59,7 @@ graph TD
 |---|---|
 | **Дата-инженерия** | PostgreSQL 17 (оконные функции, CTE, индексы на FK, `MATERIALIZED VIEW` + `REFRESH CONCURRENTLY`), ClickHouse (`MergeTree`, `AggregatingMergeTree`), pandas, SQLAlchemy, psycopg2, clickhouse-connect, pytest |
 | **Аналитика** | Реестр метрик как единственный источник истины (генерация SQL из определений), RFM по естественным разрывам, survival-анализ оттока (Kaplan-Meier, log-rank, Cox PH) с обработкой цензурирования, когортная юнит-экономика; экспериментальная платформа: always-valid p-values (mSPRT), CUPED, SRM, guardrail-метрики |
-| **ML и AI** | scikit-learn (Logistic Regression, Random Forest), Ollama (Qwen2.5-3B-Instruct + all-minilm, локальный инференс), pgvector + HNSW, гибридный поиск (RRF), pydantic, MLflow (трекинг экспериментов) |
+| **ML и AI** | scikit-learn (Logistic Regression, Random Forest), Ollama (Qwen2.5-3B-Instruct + all-minilm, локальный инференс), Groq API (Llama 3.3 70B Instruct — опциональный облачный backend для триажа и AI-дайджеста), pgvector + HNSW, гибридный поиск (RRF), pydantic, MLflow (трекинг экспериментов) |
 | **Оркестрация** | Apache Airflow 2.10 (`LocalExecutor`), DAG на 16 задач через три репозитория + event-driven вызовы n8n; изолированный venv для тасков (см. [ADR 005](docs/adr/005-why-separate-venv-for-tasks.md)) |
 | **Бизнес-автоматизация** | n8n (self-hosted, event-driven): алерты, AI-дайджест, Notion-документация, Self-Service SQL-бот; три разграниченные read-only роли PostgreSQL под разные поверхности атаки |
 | **Инфраструктура** | Docker / Docker Compose, GitHub Actions CI, Jupyter (nbformat/nbconvert), Metabase, python-dotenv |
@@ -142,6 +142,15 @@ retention) — подробности и полные скриншоты в READ
   ошибок не чинится лучшим поиском, а является собственным семантическим
   смещением 3B-модели.
 
+- **Честно сравнил локальную и облачную LLM на одном пайплайне, а не только
+  на бумаге.** Тот же промпт, retrieval и парсинг — только backend меняется:
+  Qwen2.5-3B (Ollama, CPU) даёт accuracy 0.733 за ~24.6с/сообщение, Llama 3.3
+  70B (Groq API) — 0.911 за ~2.0с. Разница в latency больше, чем можно было
+  бы приписать одному размеру модели: сказывается ещё и железо (CPU без CUDA
+  против LPU). Первый прогон сравнения упал на реальном 429 от Groq
+  (free-tier TPM исчерпан) — обработано retry с паузой по
+  `x-ratelimit-reset-tokens`, а не скрыто повторным запуском.
+
 - **Оркестрировал через Airflow и нашёл конфликт зависимостей до
   продакшна**: DAG на 16 задач одним прогоном через все репозитории.
   Установка зависимостей тасков в окружение самого Airflow сломала бы его
@@ -166,9 +175,11 @@ retention) — подробности и полные скриншоты в READ
   единственный источник истины, survival-анализ и RFM, экспериментальная
   платформа (mSPRT, CUPED, SRM, guardrail-метрики).
 - [`support-triage-llm`](https://github.com/exist-ty/support-triage-llm) —
-  триаж обращений локальной LLM с гибридным RAG-поиском.
+  триаж обращений локальной LLM с гибридным RAG-поиском; опционально —
+  честное сравнение с облачной Llama 3.3 70B (Groq) на том же пайплайне.
 - [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation) —
-  event-driven автоматизация: алерты, дайджест, Self-Service SQL-бот.
+  event-driven автоматизация: алерты, дайджест (переключаем между локальной
+  Qwen и облачной Llama 3.3 70B), Self-Service SQL-бот.
 - **Этот репозиторий** — Airflow DAG, оркестрирующий четыре репозитория выше.
 
 Полный разбор каждого — [`docs/architecture.md`](docs/architecture.md).
@@ -181,4 +192,4 @@ retention) — подробности и полные скриншоты в READ
 - [`docs/business-automation.md`](docs/business-automation.md) — n8n-автоматизация.
 - [`docs/adr/`](docs/adr/) — Architecture Decision Records: почему Airflow, почему Ollama, почему RRF, почему ClickHouse рядом с Postgres, почему отдельный venv для тасков.
 - [`docs/case_studies/`](docs/case_studies/) — четыре разбора (Problem → Investigation → Solution → Lesson Learned): три технических инцидента (конфликт версий SQLAlchemy, ClickHouse медленнее ожидаемого, non-determinism LLM-триажа) и один продуктовый — какой канал привлечения сокращать.
-- [`docs/roadmap.md`](docs/roadmap.md) — две части: отложенное осознанно (Spark, Kafka, Kubernetes, vLLM/TGI, S3+Iceberg, Grafana) с триггерами перехода и следующие шаги (dbt, инкрементальность и backfill, SCD2, контракты данных, OpenLineage, CI с живой БД).
+- [`docs/roadmap.md`](docs/roadmap.md) — две части: отложенное осознанно (Spark, Kafka, Kubernetes, vLLM/TGI, S3+Iceberg, Grafana) с триггерами перехода и следующие шаги (dbt, SCD2, контракты данных, OpenLineage, CI с живой БД). Инкрементальная загрузка и backfill — механизм готов и реально прогнан в `etl-portfolio`, но ещё не переключён в сам Airflow DAG.
