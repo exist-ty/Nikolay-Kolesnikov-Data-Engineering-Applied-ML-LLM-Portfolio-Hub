@@ -2,7 +2,7 @@
 
 ## Context
 
-Все витрины (`product-marketing-analytics/sql/marts.sql`) — Postgres VIEW,
+Все витрины ([`product-marketing-analytics/sql/marts.sql`](https://github.com/exist-ty/product-marketing-analytics/blob/master/sql/marts.sql)) — Postgres VIEW,
 пересчитываются целиком на каждый `SELECT`. Для ~2000 заказов этого пет-проекта
 нормально, для десятков миллионов строк — нет. Нужно было решить, добавлять ли
 отдельный OLAP-движок, и если да, заменять им Postgres-витрины или дополнять.
@@ -55,8 +55,9 @@ Postgres быстрее во всех трёх вариантах, включа�
 ### Где проходит точка перелома
 
 Отдельный вопрос, на который демо-объём ответить не может в принципе.
-`clickhouse/run_scale_benchmark.py` ищет ответ методикой, уже применённой в
-`etl-portfolio/scripts/generate_scale_data.py` к индексам Postgres: отдельные
+[`clickhouse/run_scale_benchmark.py`](https://github.com/exist-ty/product-marketing-analytics/blob/master/clickhouse/run_scale_benchmark.py)
+ищет ответ методикой, уже применённой в
+[`etl-portfolio/scripts/generate_scale_data.py`](https://github.com/exist-ty/etl-portfolio/blob/master/scripts/generate_scale_data.py) к индексам Postgres: отдельные
 база Postgres и база ClickHouse, детерминированная генерация, несколько точек
 масштаба, один и тот же набор запросов на обоих движках.
 

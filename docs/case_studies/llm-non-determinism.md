@@ -2,7 +2,7 @@
 
 ## Problem
 
-`support-triage-llm/scripts/evaluate_llm.py` сравнивает предсказанную моделью
+[`support-triage-llm/scripts/evaluate_llm.py`](https://github.com/exist-ty/support-triage-llm/blob/main/scripts/evaluate_llm.py) сравнивает предсказанную моделью
 (`qwen2.5:3b-instruct`, Ollama) категорию обращения с известной по
 построению синтетических данных `true_category`. Первый честный прогон дал
 accuracy 0.69 (чистый векторный поиск), затем 0.71 (после перехода на

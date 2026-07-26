@@ -50,7 +50,7 @@ Report, Notion-документация) и витрины `product-marketing-an
   - `metrics/` — реестр метрик как единственный источник истины. Определения
     LTV/CAC/ROMI/retention были размазаны по витринам, ноутбуку, SQL внутри
     n8n и карточкам Metabase; здесь они описаны один раз, а SQL каждого
-    потребителя порождается из описания. `metrics/README.md` разбирает девять
+    потребителя порождается из описания. [`metrics/README.md`](https://github.com/exist-ty/product-marketing-analytics/blob/master/metrics/README.md) разбирает девять
     найденных расхождений между этими копиями.
   - `analysis/` — RFM-сегментация с границами по естественным разрывам,
     survival-анализ оттока (Kaplan-Meier, log-rank, Cox PH) с корректной

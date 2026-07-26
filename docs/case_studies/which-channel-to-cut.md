@@ -8,7 +8,7 @@
 приносит цифру, менеджер по маркетингу перераспределяет бюджет, и обратной
 связи придётся ждать месяцами.
 
-`product-marketing-analytics` уже считает CAC, CPL и ROMI помесячно и по
+[`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics) уже считает CAC, CPL и ROMI помесячно и по
 каналу (`mart_channel_economics`), накопительную выручку клиента
 (`mart_customer_ltv`) и когортный retention (`mart_cohort_retention`).
 Соблазн — отсортировать каналы по ROMI и назвать худший. Ниже разбор,
@@ -320,7 +320,7 @@ LTV в этой паре не является основанием для бю�
   канал с теми же 1.2 за 14 месяцев — это разные решения при ограниченном
   оборотном капитале, хотя метрика у них одна и та же.
 - *Данные не синтетические.* Датасет сгенерирован
-  `etl-portfolio/scripts/generate_data.py`: канал клиента выбирается
+  [`etl-portfolio/scripts/generate_data.py`](https://github.com/exist-ty/etl-portfolio/blob/master/scripts/generate_data.py): канал клиента выбирается
   случайно и независимо от его будущего поведения. То есть в этих данных
   **истинной разницы между каналами по LTV не заложено вообще** — любая
   найденная разница является шумом по построению. Это самое сильное

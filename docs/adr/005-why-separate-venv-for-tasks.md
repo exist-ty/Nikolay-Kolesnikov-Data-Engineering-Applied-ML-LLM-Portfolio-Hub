@@ -3,8 +3,9 @@
 ## Context
 
 DAG (`dags/ecosystem_pipeline_dag.py`) должен запускать скрипты трёх
-соседних репозиториев (`etl-portfolio`, `product-marketing-analytics`,
-`support-triage-llm`) через `BashOperator`. Изначально задачные зависимости
+соседних репозиториев ([`etl-portfolio`](https://github.com/exist-ty/etl-portfolio),
+[`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics),
+[`support-triage-llm`](https://github.com/exist-ty/support-triage-llm)) через `BashOperator`. Изначально задачные зависимости
 (`pandas`, `sqlalchemy`, `clickhouse-connect` и т.д.) ставились прямо в
 Python-окружение самого Airflow.
 

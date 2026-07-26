@@ -3,7 +3,7 @@
 ## Problem
 
 Первый прогон `etl_pipeline` внутри Airflow упал с `ImportError` на строке
-`from sqlalchemy import Engine` в `etl-portfolio/src/etl/db.py`. Скрипт
+`from sqlalchemy import Engine` в [`etl-portfolio/src/etl/db.py`](https://github.com/exist-ty/etl-portfolio/blob/master/src/etl/db.py). Скрипт
 работал локально (вне Airflow) без единой проблемы — тот же файл, тот же
 Python, разное окружение.
 

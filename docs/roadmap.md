@@ -20,7 +20,7 @@
 
 ## Spark при >10M строк
 
-**Почему не нужно сейчас.** `etl-portfolio` обрабатывает ~2000 заказов за
+**Почему не нужно сейчас.** [`etl-portfolio`](https://github.com/exist-ty/etl-portfolio) обрабатывает ~2000 заказов за
 секунды через pandas в одном процессе. Оверхед распределённого вычисления
 (планирование задач, сериализация между executor'ами) на таком объёме
 дороже, чем сама работа — Spark-кластер решал бы проблему, которой ещё нет.
@@ -37,7 +37,7 @@ DataFrame-операции: `clean_orders`, `clean_customers`, `build_fact_order
 
 **Почему не нужно сейчас.** Данные поступают батчами (один ETL-залив CSV,
 одна генерация синтетических сообщений) — это by design пакетный ночной
-джоб (см. `support-triage-llm/scripts/run_triage.py`, docstring: "не
+джоб (см. [`support-triage-llm/scripts/run_triage.py`](https://github.com/exist-ty/support-triage-llm/blob/main/scripts/run_triage.py), docstring: "не
 realtime-сервис"), не непрерывный поток событий.
 
 **Как бы выглядела архитектура.** Заказы/сообщения публикуются в топик Kafka

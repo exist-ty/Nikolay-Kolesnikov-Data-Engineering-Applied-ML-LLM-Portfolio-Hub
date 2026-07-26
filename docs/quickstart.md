@@ -18,12 +18,12 @@ cp .env.example .env        # указать реальные креды, .env �
 pytest                       # проверить, что окружение готово
 ```
 
-1. **etl-portfolio** — поднять PostgreSQL, применить `sql/schema.sql`,
+1. **[etl-portfolio](https://github.com/exist-ty/etl-portfolio)** — поднять PostgreSQL, применить `sql/schema.sql`,
    сгенерировать и загрузить данные (`python -m src.etl.pipeline`).
-2. **product-marketing-analytics** — применить `sql/marts.sql`, поднять
+2. **[product-marketing-analytics](https://github.com/exist-ty/product-marketing-analytics)** — применить `sql/marts.sql`, поднять
    Metabase одной командой (`docker compose up -d`), обучить модель оттока
    (`python ml/train_churn_model.py`).
-3. **support-triage-llm** — поднять `pgvector`-контейнер и Ollama
+3. **[support-triage-llm](https://github.com/exist-ty/support-triage-llm)** — поднять `pgvector`-контейнер и Ollama
    (`docker compose up -d`), применить `sql/triage_schema.sql`, прогнать
    пайплайн триажа (`python scripts/run_triage.py`).
 4. **Этот репозиторий (оркестрация)** — см. `docs/orchestration.md`.

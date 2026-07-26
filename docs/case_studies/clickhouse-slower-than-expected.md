@@ -2,7 +2,7 @@
 
 ## Problem
 
-`product-marketing-analytics` уже имел Postgres VIEW `mart_channel_economics`
+[`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics) уже имел Postgres VIEW `mart_channel_economics`
 для агрегата "выручка по каналу/месяцу" — пересчитывается целиком на каждый
 `SELECT`. Добавлен ClickHouse-слой (`analytics.order_events` — `MergeTree`,
 плюс `channel_monthly_revenue` — `AggregatingMergeTree` с инкрементальным

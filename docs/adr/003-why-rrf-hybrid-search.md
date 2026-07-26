@@ -2,7 +2,7 @@
 
 ## Context
 
-RAG-триаж (`support-triage-llm`) должен находить релевантные документы базы
+RAG-триаж ([`support-triage-llm`](https://github.com/exist-ty/support-triage-llm)) должен находить релевантные документы базы
 знаний (`kb_documents`) для входящего обращения клиента. Два независимых
 вопроса: (1) чисто векторный поиск или гибрид (dense + sparse); (2)
 pgvector рядом с уже существующим Postgres или отдельная vector DB

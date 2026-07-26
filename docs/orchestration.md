@@ -1,15 +1,16 @@
 # Оркестрация (Airflow)
 
-Три репозитория экосистемы (`etl-portfolio`, `product-marketing-analytics`,
-`support-triage-llm`) документируют свои зависимости в README как ручные
+Три репозитория экосистемы ([`etl-portfolio`](https://github.com/exist-ty/etl-portfolio),
+[`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics),
+[`support-triage-llm`](https://github.com/exist-ty/support-triage-llm)) документируют свои зависимости в README как ручные
 инструкции ("сначала прогони X, потом Y") — реальные зависимости между
 задачами, просто не выраженные явно. `dags/ecosystem_pipeline_dag.py`
 превращает их в настоящий DAG на 17 задач: 10 задач самого пайплайна,
-3 `notify_*` (будят воркфлоу в `n8n-business-automation` через webhook),
+3 `notify_*` (будят воркфлоу в [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation) через webhook),
 3 `health_check_*` (`scripts/health_check.py`) и `check_drift` (дрейф
 `total_amount` неделя к неделе, `scripts/check_drift.py` — результат
 передаётся `notify_drift_check` как тело POST-запроса). `data_contracts`
-(Soda Core, `etl-portfolio/soda/checks.yml`) гейтит витрины fail-fast ДО их
+(Soda Core, [`etl-portfolio/soda/checks.yml`](https://github.com/exist-ty/etl-portfolio/blob/master/soda/checks.yml)) гейтит витрины fail-fast ДО их
 построения — в отличие от `notify_quality_report`, который срабатывает
 параллельно и постфактум, см. [roadmap.md](roadmap.md):
 

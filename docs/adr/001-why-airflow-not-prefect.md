@@ -2,8 +2,9 @@
 
 ## Context
 
-Три соседних репозитория (`etl-portfolio`, `product-marketing-analytics`,
-`support-triage-llm`) документировали свои зависимости друг от друга как
+Три соседних репозитория ([`etl-portfolio`](https://github.com/exist-ty/etl-portfolio),
+[`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics),
+[`support-triage-llm`](https://github.com/exist-ty/support-triage-llm)) документировали свои зависимости друг от друга как
 ручные инструкции в README ("сначала прогони X, потом Y") — реальный DAG,
 просто не выраженный явно. Нужен был инструмент, который превратит это в
 настоящую оркестрацию: явный граф зависимостей, retry/alerting, UI для
