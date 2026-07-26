@@ -23,11 +23,11 @@ graph TD
 
 Сплошные стрелки — пайплайн-поток данных (Airflow DAG вызывает эти
 репозитории по очереди), пунктирные — "читается напрямую": n8n не встроен
-в DAG как ещё один шаг, а читает staging `etl-portfolio` (Data Quality
-Report, Notion-документация) и витрины `product-marketing-analytics`
+в DAG как ещё один шаг, а читает staging [`etl-portfolio`](https://github.com/exist-ty/etl-portfolio) (Data Quality
+Report, Notion-документация) и витрины [`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics)
 напрямую (`mart_channel_economics`/`mart_customer_ltv`/`mart_cohort_retention` —
 `GRANT SELECT` выдан именно на них для Self-Service SQL-бота, см.
-`sql/readonly_role_selfservice.sql` в `n8n-business-automation`) по
+[`sql/readonly_role_selfservice.sql`](https://github.com/exist-ty/n8n-business-automation/blob/master/sql/readonly_role_selfservice.sql) в [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation)) по
 событию, а не как шаг пайплайна.
 
 ## Компоненты экосистемы
@@ -74,9 +74,9 @@ Report, Notion-документация) и витрины `product-marketing-an
   Bearer-аутентификация проверены вживую из контейнера n8n.
 - **Этот репозиторий** — помимо документации, `docker-compose.yml` +
   `dags/ecosystem_pipeline_dag.py`: Airflow (LocalExecutor) оркестрирует
-  основной пайплайн трёх репозиториев выше (etl-portfolio,
-  product-marketing-analytics, support-triage-llm) одним DAG, а
-  n8n-business-automation не встроен в DAG как ещё один узел — он вызывается
+  основной пайплайн трёх репозиториев выше ([`etl-portfolio`](https://github.com/exist-ty/etl-portfolio),
+  [`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics), [`support-triage-llm`](https://github.com/exist-ty/support-triage-llm)) одним DAG, а
+  [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation) не встроен в DAG как ещё один узел — он вызывается
   из этого же DAG через webhook на ключевых точках (событие, а не шаг
   пайплайна), подробнее — [`docs/business-automation.md`](business-automation.md). OpenLineage +
   Marquez (сервис в этом же `docker-compose.yml`) дают реальный, проверенный

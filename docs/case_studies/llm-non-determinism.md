@@ -14,7 +14,7 @@ accuracy 0.69 (чистый векторный поиск), затем 0.71 (п�
 ## Investigation
 
 Три возможных объяснения были рассмотрены: (1) регрессия в коде между
-прогонами — исключено, `git diff` между прогонами по `support-triage-llm`
+прогонами — исключено, `git diff` между прогонами по [`support-triage-llm`](https://github.com/exist-ty/support-triage-llm)
 не затрагивал ни `src/rag.py`, ни `src/triage.py`, ни промпт; (2) разные
 входные данные — исключено, `client_messages`/`true_category` строится
 детерминированно тем же `generate_messages.py` с фиксированным сидом; (3)
@@ -34,7 +34,7 @@ accuracy 0.69 (чистый векторный поиск), затем 0.71 (п�
 Это не баг, который нужно чинить программно (жёстко зафиксировать
 `temperature=0`/`seed` — было бы искусственным устранением реального
 свойства системы, а не решением проблемы измерения). Вместо этого —
-честная документация: README `support-triage-llm` и хаба прямо называют
+честная документация: README [`support-triage-llm`](https://github.com/exist-ty/support-triage-llm) и хаба прямо называют
 неопределённость воспроизводимости отдельным задокументированным риском, а
 не скрывают её за единственным "финальным" числом. [`n8n-business-automation/docs/manager-guide-self-service-bot.md`](https://github.com/exist-ty/n8n-business-automation/blob/master/docs/manager-guide-self-service-bot.md)
 (соседний компонент, тот же класс модели) отдельно убрал из списка

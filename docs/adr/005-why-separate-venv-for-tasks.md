@@ -21,7 +21,7 @@ Python-окружение самого Airflow.
 - **Найденный конфликт, не гипотетический риск**: Airflow 2.x жёстко
   требует `sqlalchemy<2.0` (через `flask-appbuilder`/
   `marshmallow-sqlalchemy`, на которых держится веб-интерфейс), а
-  `etl-portfolio` использует `from sqlalchemy import Engine` — API,
+  [`etl-portfolio`](https://github.com/exist-ty/etl-portfolio) использует `from sqlalchemy import Engine` — API,
   которого в 1.4 нет. Установка задачных зависимостей с `--constraint` из
   официального constraints-файла тихо понизила `sqlalchemy` до 1.4.54;
   первый прогон `etl_pipeline` упал с `ImportError` прямо на этом.

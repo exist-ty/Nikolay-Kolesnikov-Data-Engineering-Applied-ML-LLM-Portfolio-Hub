@@ -350,7 +350,7 @@ LTV в этой паре не является основанием для бю�
 это и есть та часть, которую нельзя отложить до момента, когда БД
 поднимется.
 
-См. `sql/marts.sql` в `product-marketing-analytics` (определения витрин),
+См. [`sql/marts.sql`](https://github.com/exist-ty/product-marketing-analytics/blob/master/sql/marts.sql) в [`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics) (определения витрин),
 [`docs/roadmap.md`](../roadmap.md) (раздел «Метрический слой на dbt» — как
 устраняется расхождение определений между витриной, ноутбуком и n8n) и
 [`docs/adr/004-why-clickhouse-alongside-postgres.md`](../adr/004-why-clickhouse-alongside-postgres.md).

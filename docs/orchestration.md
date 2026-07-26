@@ -47,7 +47,7 @@ graph TD
 данные — печатается в лог, но пайплайн не блокирует. Раньше WARNING тоже
 возвращал 1, и поскольку health check стоит корнем ветки, любой варнинг
 останавливал весь граф. С замороженным датасетом (`order_date` не позже
-2025-12-31, см. `etl-portfolio/scripts/generate_data.py`) при
+2025-12-31, см. [`etl-portfolio/scripts/generate_data.py`](https://github.com/exist-ty/etl-portfolio/blob/master/scripts/generate_data.py)) при
 `STALE_DAYS=400` это гарантированно положило бы весь пайплайн в начале
 февраля 2027 — отложенный отказ, который не проявился бы до самого дня.
 
@@ -58,15 +58,15 @@ webserver + scheduler (`LocalExecutor` — Celery/Redis для пет-проек
 избыточны, см. [`docs/adr/001-why-airflow-not-prefect.md`](adr/001-why-airflow-not-prefect.md)), на том же Docker
 Desktop, что уже используется для Metabase/ClickHouse/pgvector. Три
 репозитория смонтированы в контейнер как read-write volume'ы
-(`../etl-portfolio`, `../product-marketing-analytics`, `../llm-practice` —
-под именем `support-triage-llm` в контейнере).
+(`../etl-portfolio` — [`etl-portfolio`](https://github.com/exist-ty/etl-portfolio), `../product-marketing-analytics` — [`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics), `../llm-practice` —
+под именем [`support-triage-llm`](https://github.com/exist-ty/support-triage-llm) в контейнере).
 
 **Найденный конфликт зависимостей.** Изначально задачные зависимости
 (pandas, sqlalchemy, clickhouse-connect и т.д.) ставились прямо в окружение
 Airflow с `--constraint` из официального constraints-файла — это тихо
 понизило `sqlalchemy` до 1.4.54, потому что сам Airflow 2.x жёстко требует
 `sqlalchemy<2.0` (через `flask-appbuilder`/`marshmallow-sqlalchemy`, на
-которых держится веб-интерфейс), а `etl-portfolio` использует
+которых держится веб-интерфейс), а [`etl-portfolio`](https://github.com/exist-ty/etl-portfolio) использует
 `from sqlalchemy import Engine` — API, которого в 1.4 нет. Первый прогон
 `etl_pipeline` упал с `ImportError` прямо на этом. Решение — отдельный venv
 для задач (`/home/airflow/task-venv`, см. `Dockerfile` и
@@ -78,7 +78,7 @@ Python-окружения самого Airflow; DAG вызывает
 `DB_HOST=localhost` — внутри контейнера это сам контейнер, не хост.
 Переопределено на уровне `docker-compose.yml` (`DB_HOST=host.docker.internal`
 и аналогично для `VECTOR_DB_HOST`/`CLICKHOUSE_HOST`/`OLLAMA_HOST`) — тот же
-приём, что уже использует `product-marketing-analytics/docker-compose.yml`
+приём, что уже использует [`product-marketing-analytics/docker-compose.yml`](https://github.com/exist-ty/product-marketing-analytics/blob/master/docker-compose.yml)
 для Metabase. `python-dotenv` не перезаписывает уже установленные
 переменные окружения, поэтому `.env` репозиториев трогать не пришлось.
 
@@ -107,7 +107,7 @@ started"}`, задача помечалась `SUCCESS`. Честная огов
 из того самого прогона на 9 задач:
 
 - **`run_triage` занял ~51 минуту** вместо задокументированных в
-  `support-triage-llm` ~24 — правдоподобное объяснение: Airflow (Postgres +
+  [`support-triage-llm`](https://github.com/exist-ty/support-triage-llm) ~24 — правдоподобное объяснение: Airflow (Postgres +
   webserver + scheduler) и CPU-инференс Ollama делят одни и те же
   ограниченные CPU/RAM этой машины (8GB RAM — уже известное ограничение,
   не гипотеза задним числом). Не измерялось строго изолированно, но

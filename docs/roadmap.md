@@ -131,8 +131,8 @@ DAG.
 `accepted_values` — проверки данных в контроле версий, а не в голове.
 Снапшоты как готовый механизм историчности. `dbt docs` как каталог.
 
-**С чего начинать.** Перенести витрины из `sql/marts.sql` в модели по слоям
-staging → intermediate → marts, объявить staging-таблицы `etl-portfolio`
+**С чего начинать.** Перенести витрины из [`sql/marts.sql`](https://github.com/exist-ty/product-marketing-analytics/blob/master/sql/marts.sql) в модели по слоям
+staging → intermediate → marts, объявить staging-таблицы [`etl-portfolio`](https://github.com/exist-ty/etl-portfolio)
 источниками, покрыть ключи тестами. Затем развернуть в Airflow через Cosmos —
 он превращает dbt-проект в TaskGroup с отдельной задачей на модель, и граф
 DAG начинает показывать настоящие зависимости по данным вместо одного
