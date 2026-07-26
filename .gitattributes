@@ -1,0 +1,4 @@
+# marquez/init-db.sh монтируется напрямую в Linux-контейнер postgres
+# (docker-compose.yml) — CRLF от core.autocrlf на Windows-чекауте сломал бы
+# его исполнение (`$'\r': command not found`), поэтому LF зафиксирован явно.
+*.sh text eol=lf

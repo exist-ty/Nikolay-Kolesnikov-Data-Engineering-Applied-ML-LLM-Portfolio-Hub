@@ -1,6 +1,18 @@
 FROM apache/airflow:2.10.4-python3.11
 
 USER airflow
+
+# OpenLineage: провайдер ставится В ОКРУЖЕНИЕ САМОГО AIRFLOW (не в task-venv
+# ниже) — он хук в его собственный listener-плагин, а не библиотека,
+# импортируемая задачными скриптами. Версия и --constraint взяты из
+# ОФИЦИАЛЬНОГО constraints-файла Airflow 2.10.4 (см. docs/roadmap.md —
+# совместимость версии провайдера с 2.10.4 была открытым вопросом, теперь
+# решена: это ровно та версия, что сам Airflow 2.10.4 объявляет совместимой
+# со своим набором зависимостей), той же техникой, что уже использует
+# validate-dag job в CI для установки самого Airflow.
+RUN pip install --no-cache-dir "apache-airflow-providers-openlineage==1.14.0" \
+    --constraint "https://raw.githubusercontent.com/apache/airflow/constraints-2.10.4/constraints-3.11.txt"
+
 # Ставится зафиксированный файл, а не исходник намерения requirements-tasks.in:
 # без точных версий сборка через полгода даёт другой pandas и другой
 # scikit-learn, чем сегодня. Пины проверяются джобой build-image в CI —

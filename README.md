@@ -60,7 +60,7 @@ graph TD
 | **Дата-инженерия** | PostgreSQL 17 (оконные функции, CTE, индексы на FK, `MATERIALIZED VIEW` + `REFRESH CONCURRENTLY`), ClickHouse (`MergeTree`, `AggregatingMergeTree`), pandas, SQLAlchemy, psycopg2, clickhouse-connect, pytest |
 | **Аналитика** | Реестр метрик как единственный источник истины (генерация SQL из определений), RFM по естественным разрывам, survival-анализ оттока (Kaplan-Meier, log-rank, Cox PH) с обработкой цензурирования, когортная юнит-экономика; экспериментальная платформа: always-valid p-values (mSPRT), CUPED, SRM, guardrail-метрики |
 | **ML и AI** | scikit-learn (Logistic Regression, Random Forest), Ollama (Qwen2.5-3B-Instruct + all-minilm, локальный инференс), Groq API (Llama 3.3 70B Instruct — опциональный облачный backend для триажа и AI-дайджеста), pgvector + HNSW, гибридный поиск (RRF), pydantic, MLflow (трекинг экспериментов) |
-| **Оркестрация** | Apache Airflow 2.10 (`LocalExecutor`), DAG на 16 задач через три репозитория + event-driven вызовы n8n; изолированный venv для тасков (см. [ADR 005](docs/adr/005-why-separate-venv-for-tasks.md)) |
+| **Оркестрация** | Apache Airflow 2.10 (`LocalExecutor`), DAG на 17 задач через три репозитория + event-driven вызовы n8n; изолированный venv для тасков (см. [ADR 005](docs/adr/005-why-separate-venv-for-tasks.md)); OpenLineage + Marquez — lineage-граф между репозиториями; Soda Core — декларативные контракты данных fail-fast до витрин |
 | **Бизнес-автоматизация** | n8n (self-hosted, event-driven): алерты, AI-дайджест, Notion-документация, Self-Service SQL-бот; три разграниченные read-only роли PostgreSQL под разные поверхности атаки |
 | **Инфраструктура** | Docker / Docker Compose, GitHub Actions CI, Jupyter (nbformat/nbconvert), Metabase, python-dotenv |
 
@@ -152,7 +152,7 @@ retention) — подробности и полные скриншоты в READ
   `x-ratelimit-reset-tokens`, а не скрыто повторным запуском.
 
 - **Оркестрировал через Airflow и нашёл конфликт зависимостей до
-  продакшна**: DAG на 16 задач одним прогоном через все репозитории.
+  продакшна**: DAG на 17 задач одним прогоном через все репозитории.
   Установка зависимостей тасков в окружение самого Airflow сломала бы его
   веб-интерфейс (конфликт версий SQLAlchemy) — решение задокументировано в
   [ADR 005](docs/adr/005-why-separate-venv-for-tasks.md).
@@ -165,6 +165,24 @@ retention) — подробности и полные скриншоты в READ
   пересёк бы порог свежести. Три задачи заканчивались на `|| true` и не могли
   упасть никогда — лежащий n8n выглядел бы зелёным. Подробности —
   [`docs/orchestration.md`](docs/orchestration.md).
+
+- **Заменил постфактум-проверки данных на fail-fast контракты и измерил то,
+  что раньше было утверждением без цифры.** Soda Core над staging (`data_contracts`
+  в DAG, до витрин, а не после — см. `etl-portfolio/soda/checks.yml`) нашёл
+  4.8% заказов (96 из 1985) с `order_date` раньше `signup_date` клиента —
+  число, которое `metrics/README.md` документировал как открытый вопрос, но
+  никогда не считал вживую. WARN, а не FAIL: это свойство синтетического
+  генератора, а не поломка — иначе задача падала бы при каждом прогоне.
+- **Добавил OpenLineage + Marquez и проверил лineage-граф, а не только то,
+  что контейнер поднялся.** `apache-airflow-providers-openlineage==1.14.0` —
+  версия из официального constraints-файла Airflow 2.10.4, уже входит в базовый
+  образ. Честная граница: у `BashOperator` нет автоматического SQL-экстрактора,
+  поэтому per-column lineage не появляется сам по себе — датасеты объявлены
+  явно через `inlets`/`outlets` (`Table` из `airflow.lineage.entities`).
+  Итог проверен через API Marquez: граф реально связывает
+  `stg_orders` (PostgreSQL) → `refresh_marts`/`load_to_clickhouse` →
+  `mart_customer_ltv`/`analytics.order_events` (ClickHouse) — то есть провенанс
+  цифры в дайджесте теперь виден без чтения кода трёх репозиториев.
 
 ## 📦 Компоненты экосистемы
 

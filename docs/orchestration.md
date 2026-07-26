@@ -4,20 +4,24 @@
 `support-triage-llm`) документируют свои зависимости в README как ручные
 инструкции ("сначала прогони X, потом Y") — реальные зависимости между
 задачами, просто не выраженные явно. `dags/ecosystem_pipeline_dag.py`
-превращает их в настоящий DAG на 16 задач: 9 задач самого пайплайна,
+превращает их в настоящий DAG на 17 задач: 10 задач самого пайплайна,
 3 `notify_*` (будят воркфлоу в `n8n-business-automation` через webhook),
 3 `health_check_*` (`scripts/health_check.py`) и `check_drift` (дрейф
 `total_amount` неделя к неделе, `scripts/check_drift.py` — результат
-передаётся `notify_drift_check` как тело POST-запроса):
+передаётся `notify_drift_check` как тело POST-запроса). `data_contracts`
+(Soda Core, `etl-portfolio/soda/checks.yml`) гейтит витрины fail-fast ДО их
+построения — в отличие от `notify_quality_report`, который срабатывает
+параллельно и постфактум, см. [roadmap.md](roadmap.md):
 
 ```mermaid
 graph TD
     S[health_check_core<br/>postgres, clickhouse] --> A[etl_pipeline]
     A --> B[notify_quality_report]
-    A --> C[refresh_marts] --> D[notify_docs_refresh]
-    A --> E[load_to_clickhouse]
-    A --> F[build_features] --> G[train_churn_model]
-    A --> H[generate_messages] --> I[run_triage]
+    A --> Q[data_contracts]
+    Q --> C[refresh_marts] --> D[notify_docs_refresh]
+    Q --> E[load_to_clickhouse]
+    Q --> F[build_features] --> G[train_churn_model]
+    Q --> H[generate_messages] --> I[run_triage]
     I --> J[channel_triage_summary]
     I --> K[evaluate_llm]
     J --> P[check_drift]
@@ -133,6 +137,48 @@ started"}`, задача помечалась `SUCCESS`. Честная огов
   (контейнер лежал ещё с предыдущей перезагрузки Docker Desktop) —
   `status: "ERROR"` с точным сообщением о недоступности `host.docker.internal:8123`,
   задача честно упала с ненулевым кодом. После `docker start` — `OK`.
+
+## OpenLineage и Marquez
+
+**Зачем.** У пяти репозиториев не было единого способа ответить "откуда
+взялось это число в дайджесте", кроме чтения кода трёх скриптов подряд.
+
+**Версия провайдера.** `apache-airflow-providers-openlineage==1.14.0` — точно
+та версия, что объявлена в официальном constraints-файле Airflow 2.10.4
+(`constraints-2.10.4/constraints-3.11.txt`); открытый вопрос из roadmap о
+совместимости закрыт этим фактом, а не догадкой — сборка `docker build`
+показала, что провайдер уже входит в базовый образ `apache/airflow:2.10.4`
+(`Requirement already satisfied`), пин в Dockerfile существует для
+воспроизводимости и явной документации версии, а не потому что чего-то не
+хватало.
+
+**Marquez.** Сервис `marquez-api` + `marquez-db` + `marquez-web` в этом же
+`docker-compose.yml`, версии и порты — из официального
+`docker-compose.yml`/`.env.example` проекта Marquez. Один настоящий пробел
+в их официальном файле: volume `db-init` монтируется пустым, а
+`docker/init-db.sh` (создаёт роль/базу `marquez`) в репозитории лежит
+отдельно и никуда не подключён — без него `marquez-api` падает при старте
+(`FATAL: password authentication failed for user "marquez"`, конфиг образа
+`marquez.dev.yml` жёстко использует `user: marquez`/`password: marquez`,
+игнорируя переменные окружения). Скопирован в `marquez/init-db.sh` этого
+репозитория и смонтирован в `/docker-entrypoint-initdb.d/`.
+
+**Честная граница: не column-level, а table-level.** У `BashOperator` (все
+задачи DAG — он) нет автоматического SQL-экстрактора, в отличие от
+`PostgresOperator`/`SQLExecuteQueryOperator` — OpenLineage не может сам
+понять, какие таблицы читает и пишет произвольный python-скрипт внутри
+`bash_command`. Датасеты объявлены явно через `inlets`/`outlets`
+(`airflow.lineage.entities.Table`) на `etl_pipeline`, `data_contracts`,
+`refresh_marts`, `load_to_clickhouse` — то есть lineage-граф настоящий, но
+размечен вручную на уровне таблиц, а не выведен автоматически на уровне
+колонок, как несколько оптимистично формулировал roadmap до реализации.
+
+**Проверено через API Marquez, не только по факту, что контейнер поднялся:**
+`GET /api/v1/lineage?nodeId=dataset:postgres://host.docker.internal:5432:etl_portfolio.stg_orders`
+реально возвращает граф, связывающий `stg_orders` → `load_to_clickhouse` →
+`analytics.order_events`/`analytics.channel_monthly_revenue` в ClickHouse —
+провенанс тянется через границу двух разных систем хранения, не только
+внутри Postgres.
 
 См. также `docs/adr/` — архитектурные решения за конкретными выборами
 (Airflow, отдельный venv) с контекстом и последствиями.

@@ -41,6 +41,13 @@ x-airflow-common: &airflow-common
     # mlflow — сервис в этом же docker-compose (см. ниже), поэтому по имени
     # сервиса в общей compose-сети, а не host.docker.internal
     MLFLOW_TRACKING_URI: http://mlflow:5501
+    # OpenLineage: автоматический column-level lineage через штатный листенер
+    # провайдера (см. Dockerfile) — задачи ничего не меняют, события сами
+    # улетают в Marquez (сервис в этом же compose, см. ниже) при каждом
+    # прогоне DAG. Формат transport — задокументированный JSON, а не
+    # устаревшие OPENLINEAGE_URL/OPENLINEAGE_NAMESPACE переменные.
+    AIRFLOW__OPENLINEAGE__TRANSPORT: '{"type": "http", "url": "http://marquez-api:5000", "endpoint": "api/v1/lineage"}'
+    AIRFLOW__OPENLINEAGE__NAMESPACE: ecosystem_pipeline
   volumes: &airflow-common-volumes
     - ./dags:/opt/airflow/dags
     - ./scripts:/opt/airflow/scripts
@@ -83,6 +90,57 @@ services:
       - "5501:5501"
     volumes:
       - mlflow-data:/mlflow
+
+  # OpenLineage-бэкенд: собирает события lineage, которые провайдер в
+  # Dockerfile отправляет автоматически при каждом прогоне DAG. Версии и
+  # порты — из официального docker-compose.yml проекта Marquez
+  # (github.com/MarquezProject/marquez), собственный Postgres не публикуется
+  # на host (нужен только marquez-api внутри compose-сети, порт 5432 хоста
+  # уже занят настоящим etl_portfolio Postgres).
+  marquez-db:
+    image: postgres:14
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      MARQUEZ_DB: marquez
+      MARQUEZ_USER: marquez
+      MARQUEZ_PASSWORD: marquez
+    volumes:
+      - marquez-db-data:/var/lib/postgresql/data
+      - ./marquez/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  marquez-api:
+    image: marquezproject/marquez:0.51.1
+    environment:
+      MARQUEZ_PORT: "5000"
+      MARQUEZ_ADMIN_PORT: "5001"
+      POSTGRES_HOST: marquez-db
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+      SEARCH_ENABLED: "false"
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    depends_on:
+      marquez-db:
+        condition: service_healthy
+
+  marquez-web:
+    image: marquezproject/marquez-web:0.51.1
+    environment:
+      MARQUEZ_HOST: marquez-api
+      MARQUEZ_PORT: "5000"
+      WEB_PORT: "3000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - marquez-api
 
   airflow-postgres:
     image: postgres:16-alpine
@@ -140,3 +198,4 @@ volumes:
   airflow-postgres-data:
   airflow-logs:
   mlflow-data:
+  marquez-db-data:

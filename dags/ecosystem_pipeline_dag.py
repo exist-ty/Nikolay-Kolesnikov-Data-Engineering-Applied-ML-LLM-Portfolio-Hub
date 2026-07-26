@@ -30,6 +30,7 @@ import urllib.request
 from datetime import datetime, timedelta
 
 from airflow import DAG
+from airflow.lineage.entities import Table
 from airflow.operators.bash import BashOperator
 
 REPOS = "/opt/repos"
@@ -57,6 +58,38 @@ N8N_DRIFT_WEBHOOK_URL = os.environ.get(
 # mlflow — сервис в этом же docker-compose (docker-compose.yml), поэтому по
 # имени сервиса в общей compose-сети, а не host.docker.internal
 MLFLOW_TRACKING_URI = os.environ.get("MLFLOW_TRACKING_URI", "http://mlflow:5501")
+
+# OpenLineage (см. Dockerfile, docker-compose.yml) не видит таблицы внутри
+# BashOperator сам по себе — в отличие от SQL-операторов у него нет
+# автоматического экстрактора, поэтому lineage по датасетам объявлен явно
+# через inlets/outlets. cluster у Table становится namespace в графе
+# Marquez, а "{database}.{name}" — именем датасета: одинаковый cluster для
+# одного и того же физического Postgres нужен, чтобы output одной задачи
+# и input следующей схлопывались в один и тот же узел графа, а не дублировались.
+POSTGRES_CLUSTER = "postgres://host.docker.internal:5432"
+CLICKHOUSE_CLUSTER = "clickhouse://host.docker.internal:8123"
+
+
+def _pg_table(name: str) -> Table:
+    return Table(cluster=POSTGRES_CLUSTER, database="etl_portfolio", name=name)
+
+
+def _ch_table(name: str) -> Table:
+    return Table(cluster=CLICKHOUSE_CLUSTER, database="analytics", name=name)
+
+
+STAGING_TABLES = [
+    _pg_table("stg_customers"),
+    _pg_table("stg_products"),
+    _pg_table("stg_orders"),
+    _pg_table("stg_marketing_spend"),
+    _pg_table("mart_sales_summary"),
+]
+ANALYTICS_MARTS = [
+    _pg_table("mart_channel_economics"),
+    _pg_table("mart_customer_ltv"),
+    _pg_table("mart_cohort_retention"),
+]
 
 
 def notify_failure(context):
@@ -135,6 +168,18 @@ with DAG(
     etl_pipeline = BashOperator(
         task_id="etl_pipeline",
         bash_command=f"cd {REPOS}/etl-portfolio && {TASK_PYTHON} -m src.etl.pipeline",
+        outlets=STAGING_TABLES,
+    )
+
+    # Декларативные контракты (Soda Core, etl-portfolio/soda/checks.yml) —
+    # fail-fast ДО построения витрин, в отличие от notify_quality_report
+    # ниже (тот же уровень графа, но постфактум и не блокирует). WARN
+    # (заказы раньше регистрации — известное свойство синтетических данных)
+    # не проваливает задачу, см. scripts/run_data_contracts.py.
+    data_contracts = BashOperator(
+        task_id="data_contracts",
+        bash_command=f"cd {REPOS}/etl-portfolio && {TASK_PYTHON} scripts/run_data_contracts.py",
+        inlets=STAGING_TABLES,
     )
 
     # Триггерит воркфлоу "AI Data Quality Report" в n8n-business-automation:
@@ -153,6 +198,8 @@ with DAG(
     refresh_marts = BashOperator(
         task_id="refresh_marts",
         bash_command=f"cd {REPOS}/product-marketing-analytics && {TASK_PYTHON} scripts/refresh_marts.py",
+        inlets=STAGING_TABLES,
+        outlets=ANALYTICS_MARTS,
     )
 
     # Триггерит "Notion Auto Documentation" — сам собирает каталог из
@@ -165,6 +212,8 @@ with DAG(
     load_to_clickhouse = BashOperator(
         task_id="load_to_clickhouse",
         bash_command=f"cd {REPOS}/product-marketing-analytics && {TASK_PYTHON} clickhouse/load_to_clickhouse.py",
+        inlets=STAGING_TABLES,
+        outlets=[_ch_table("order_events"), _ch_table("channel_monthly_revenue")],
     )
 
     build_features = BashOperator(
@@ -225,7 +274,8 @@ with DAG(
     )
 
     health_check_core >> etl_pipeline
-    etl_pipeline >> [refresh_marts, load_to_clickhouse, build_features, generate_messages, notify_quality_report]
+    etl_pipeline >> notify_quality_report
+    etl_pipeline >> data_contracts >> [refresh_marts, load_to_clickhouse, build_features, generate_messages]
     refresh_marts >> notify_docs_refresh
     build_features >> train_churn_model
     generate_messages >> run_triage >> [channel_triage_summary, evaluate_llm]

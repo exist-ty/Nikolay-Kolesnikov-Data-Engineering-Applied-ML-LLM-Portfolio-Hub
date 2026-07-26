@@ -34,8 +34,8 @@ def test_dag_imports_without_errors(dagbag):
 
 
 def test_task_count_matches_readme(dag):
-    # README заявляет «DAG на 16 задач» — тест держит цифру честной
-    assert len(dag.tasks) == 16
+    # README заявляет «DAG на 17 задач» — тест держит цифру честной
+    assert len(dag.tasks) == 17
 
 
 def test_no_task_swallows_its_exit_code(dag):
@@ -70,6 +70,18 @@ def test_health_checks_gate_only_their_own_branch(dag):
     assert "refresh_marts" in core_downstream
     assert "refresh_marts" not in ollama_downstream, "витрины не зависят от Ollama"
     assert "run_triage" in ollama_downstream
+
+
+def test_data_contracts_gate_marts_but_not_quality_report(dag):
+    """data_contracts (Soda Core) должен стоять МЕЖДУ etl_pipeline и
+    витринами — fail-fast до их построения, а не после. notify_quality_report
+    (постфактум-отчёт n8n) — независимая ветка, contracts её не гейтит."""
+    contracts_downstream = dag.get_task("data_contracts").get_flat_relative_ids(upstream=False)
+    etl_downstream = dag.get_task("etl_pipeline").get_flat_relative_ids(upstream=False)
+
+    assert {"refresh_marts", "load_to_clickhouse", "build_features", "generate_messages"} <= contracts_downstream
+    assert "data_contracts" in etl_downstream
+    assert "notify_quality_report" not in contracts_downstream
 
 
 def test_mlflow_is_checked_before_expensive_training(dag):

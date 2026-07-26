@@ -39,7 +39,9 @@ Report, Notion-документация) и витрины `product-marketing-an
   по `order_date` с upsert и реальный backfill за весь 2025 год (365 дней,
   1985 заказов через `ON CONFLICT DO UPDATE`, идемпотентность проверена
   тестом, не обещанием); в сам DAG пока не переключено, см.
-  [`docs/roadmap.md`](roadmap.md).
+  [`docs/roadmap.md`](roadmap.md). Декларативные контракты (Soda Core,
+  `soda/checks.yml`) — fail-fast над staging ДО построения витрин, задача
+  `data_contracts` в DAG этого репозитория.
 - **[product-marketing-analytics](https://github.com/exist-ty/product-marketing-analytics)** —
   SQL-витрины юнит-экономики (CAC/CPL/ROMI, LTV, retention) с материализованными
   версиями, модель прогнозирования оттока клиентов, ClickHouse OLAP-слой с
@@ -76,7 +78,10 @@ Report, Notion-документация) и витрины `product-marketing-an
   product-marketing-analytics, support-triage-llm) одним DAG, а
   n8n-business-automation не встроен в DAG как ещё один узел — он вызывается
   из этого же DAG через webhook на ключевых точках (событие, а не шаг
-  пайплайна), подробнее — `docs/business-automation.md`.
+  пайплайна), подробнее — `docs/business-automation.md`. OpenLineage +
+  Marquez (сервис в этом же `docker-compose.yml`) дают реальный, проверенный
+  через API lineage-граф между репозиториями — table-level, не column-level
+  (честная граница — см. `docs/orchestration.md`).
 
 См. также `docs/orchestration.md` (как DAG вызывает эти репозитории) и
 `docs/adr/` (архитектурные решения с обоснованием и последствиями).

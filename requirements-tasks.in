@@ -23,6 +23,9 @@ scikit-learn
 clickhouse-connect
 requests
 pydantic
+# декларативные контракты над staging (etl-portfolio/soda/checks.yml,
+# scripts/run_data_contracts.py), см. docs/roadmap.md
+soda-core-postgres
 # версия зафиксирована ровно под образ сервера mlflow в docker-compose.yml
 # (ghcr.io/mlflow/mlflow:v2.19.0) — новый клиент шлёт /logged-models API,
 # которого нет в этом образе сервера (404)
