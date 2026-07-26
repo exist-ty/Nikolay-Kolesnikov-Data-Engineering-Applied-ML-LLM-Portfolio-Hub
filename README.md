@@ -46,11 +46,11 @@ graph TD
 Сплошные стрелки — пайплайн-поток данных, пунктирные — "читается
 напрямую" (n8n не встроен в DAG как ещё один шаг, а читает staging и
 витрины по событию, см. ниже). n8n читает не только staging
-(`etl-portfolio` — Data Quality Report, Notion-документация), но и
-витрины `product-marketing-analytics` напрямую (Self-Service SQL-бот —
+([`etl-portfolio`](https://github.com/exist-ty/etl-portfolio) — Data Quality Report, Notion-документация), но и
+витрины [`product-marketing-analytics`](https://github.com/exist-ty/product-marketing-analytics) напрямую (Self-Service SQL-бот —
 `GRANT SELECT` выдан именно на `mart_channel_economics`/`mart_customer_ltv`/
-`mart_cohort_retention`, см. `sql/readonly_role_selfservice.sql` в
-`n8n-business-automation`). Подробный разбор каждого узла —
+`mart_cohort_retention`, см. [`sql/readonly_role_selfservice.sql`](https://github.com/exist-ty/n8n-business-automation/blob/master/sql/readonly_role_selfservice.sql) в
+[`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation)). Подробный разбор каждого узла —
 [`docs/architecture.md`](docs/architecture.md).
 
 ## 🛠 Технологический стек
@@ -168,9 +168,9 @@ retention) — подробности и полные скриншоты в READ
 
 - **Заменил постфактум-проверки данных на fail-fast контракты и измерил то,
   что раньше было утверждением без цифры.** Soda Core над staging (`data_contracts`
-  в DAG, до витрин, а не после — см. `etl-portfolio/soda/checks.yml`) нашёл
+  в DAG, до витрин, а не после — см. [`etl-portfolio/soda/checks.yml`](https://github.com/exist-ty/etl-portfolio/blob/master/soda/checks.yml)) нашёл
   4.8% заказов (96 из 1985) с `order_date` раньше `signup_date` клиента —
-  число, которое `metrics/README.md` документировал как открытый вопрос, но
+  число, которое [`metrics/README.md`](https://github.com/exist-ty/product-marketing-analytics/blob/master/metrics/README.md) документировал как открытый вопрос, но
   никогда не считал вживую. WARN, а не FAIL: это свойство синтетического
   генератора, а не поломка — иначе задача падала бы при каждом прогоне.
 - **Добавил OpenLineage + Marquez и проверил лineage-граф, а не только то,
