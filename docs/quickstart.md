@@ -26,7 +26,7 @@ pytest                       # проверить, что окружение г�
 3. **[support-triage-llm](https://github.com/exist-ty/support-triage-llm)** — поднять `pgvector`-контейнер и Ollama
    (`docker compose up -d`), применить `sql/triage_schema.sql`, прогнать
    пайплайн триажа (`python scripts/run_triage.py`).
-4. **Этот репозиторий (оркестрация)** — см. `docs/orchestration.md`.
+4. **Этот репозиторий (оркестрация)** — см. [`docs/orchestration.md`](orchestration.md).
 
 Для самого хаба `.env` заполняется чуть иначе: `AIRFLOW_FERNET_KEY` и три
 пароля к базам обязательны и не имеют значений по умолчанию — `docker

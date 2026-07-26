@@ -1,7 +1,7 @@
 # Бизнес-автоматизация (n8n)
 
 Отдельный репозиторий [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation)
-— event-driven обвязка вокруг Airflow DAG (см. `docs/orchestration.md`):
+— event-driven обвязка вокруг Airflow DAG (см. [`docs/orchestration.md`](orchestration.md)):
 то, что происходит **вокруг** пайплайна и обращено к людям, а не к данным.
 Airflow и n8n не дублируют друг друга — каждый n8n-воркфлоу вызывается
 webhook'ом ИЗ DAG, а не пересчитывает то, что DAG уже посчитал.
@@ -30,4 +30,4 @@ Auto Documentation, который реально обновил живую ст
 заблокированы на уровне PostgreSQL, не только на уровне промпта.
 
 Полное описание, честные результаты тестирования и обоснование модели
-угроз — в README и `docs/` самого репозитория `n8n-business-automation`.
+угроз — в README и `docs/` самого репозитория [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation).

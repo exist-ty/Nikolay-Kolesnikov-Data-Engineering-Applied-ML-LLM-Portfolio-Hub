@@ -55,7 +55,7 @@ graph TD
 поддерживает Windows (только Linux/macOS/WSL2). Стек — Postgres для
 метаданных Airflow + `airflow-init` (миграция БД, создание пользователя) +
 webserver + scheduler (`LocalExecutor` — Celery/Redis для пет-проекта
-избыточны, см. `docs/adr/001-why-airflow-not-prefect.md`), на том же Docker
+избыточны, см. [`docs/adr/001-why-airflow-not-prefect.md`](adr/001-why-airflow-not-prefect.md)), на том же Docker
 Desktop, что уже используется для Metabase/ClickHouse/pgvector. Три
 репозитория смонтированы в контейнер как read-write volume'ы
 (`../etl-portfolio`, `../product-marketing-analytics`, `../llm-practice` —
@@ -70,7 +70,7 @@ Airflow с `--constraint` из официального constraints-файла �
 `from sqlalchemy import Engine` — API, которого в 1.4 нет. Первый прогон
 `etl_pipeline` упал с `ImportError` прямо на этом. Решение — отдельный venv
 для задач (`/home/airflow/task-venv`, см. `Dockerfile` и
-`docs/adr/005-why-separate-venv-for-tasks.md`), полностью изолированный от
+[`docs/adr/005-why-separate-venv-for-tasks.md`](adr/005-why-separate-venv-for-tasks.md)), полностью изолированный от
 Python-окружения самого Airflow; DAG вызывает
 `/home/airflow/task-venv/bin/python`, а не системный `python`.
 
@@ -181,5 +181,5 @@ started"}`, задача помечалась `SUCCESS`. Честная огов
 провенанс тянется через границу двух разных систем хранения, не только
 внутри Postgres.
 
-См. также `docs/adr/` — архитектурные решения за конкретными выборами
+См. также [`docs/adr/`](adr/) — архитектурные решения за конкретными выборами
 (Airflow, отдельный venv) с контекстом и последствиями.

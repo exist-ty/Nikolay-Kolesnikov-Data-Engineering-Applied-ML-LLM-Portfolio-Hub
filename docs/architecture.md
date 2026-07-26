@@ -78,10 +78,10 @@ Report, Notion-документация) и витрины `product-marketing-an
   product-marketing-analytics, support-triage-llm) одним DAG, а
   n8n-business-automation не встроен в DAG как ещё один узел — он вызывается
   из этого же DAG через webhook на ключевых точках (событие, а не шаг
-  пайплайна), подробнее — `docs/business-automation.md`. OpenLineage +
+  пайплайна), подробнее — [`docs/business-automation.md`](business-automation.md). OpenLineage +
   Marquez (сервис в этом же `docker-compose.yml`) дают реальный, проверенный
   через API lineage-граф между репозиториями — table-level, не column-level
-  (честная граница — см. `docs/orchestration.md`).
+  (честная граница — см. [`docs/orchestration.md`](orchestration.md)).
 
-См. также `docs/orchestration.md` (как DAG вызывает эти репозитории) и
-`docs/adr/` (архитектурные решения с обоснованием и последствиями).
+См. также [`docs/orchestration.md`](orchestration.md) (как DAG вызывает эти репозитории) и
+[`docs/adr/`](adr/) (архитектурные решения с обоснованием и последствиями).
