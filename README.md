@@ -198,6 +198,12 @@ retention) — подробности и полные скриншоты в READ
 - [`n8n-business-automation`](https://github.com/exist-ty/n8n-business-automation) —
   event-driven автоматизация: алерты, дайджест (переключаем между локальной
   Qwen и облачной Llama 3.3 70B), Self-Service SQL-бот.
+- [`bi-agent-mcp`](https://github.com/exist-ty/bi-agent-mcp) — MCP-сервер +
+  LangGraph ReAct-агент над юнит-экономикой: типизированные MCP-инструменты
+  вместо NL→SQL self-service-бота, LLM-gateway (Ollama с fallback на Groq),
+  eval-loop (golden dataset из расхождений `metrics/registry.yml` +
+  LLM-as-judge). Пока не встроен в Airflow DAG этого репозитория — отдельный
+  компонент, читает ту же БД напрямую.
 - **Этот репозиторий** — Airflow DAG, оркестрирующий четыре репозитория выше.
 
 Полный разбор каждого — [`docs/architecture.md`](docs/architecture.md).
